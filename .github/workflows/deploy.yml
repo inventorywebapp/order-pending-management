@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 permissions:
@@ -10,12 +10,31 @@ permissions:
   pages: write
   id-token: write
 
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Create environment file from secrets
+        run: |
+          echo "VITE_GOOGLE_DRIVE_API_KEY=${{ secrets.VITE_GOOGLE_DRIVE_API_KEY }}" >> .env
+          echo "VITE_GOOGLE_DRIVE_CLIENT_ID=${{ secrets.VITE_GOOGLE_DRIVE_CLIENT_ID }}" >> .env
+          echo "✅ Environment variables injected"
+
+      - name: Debug - List files
+        run: ls -la
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -24,6 +43,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+          name: github-pages
 
   deploy:
     environment:
