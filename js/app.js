@@ -325,90 +325,148 @@ class OrderManagementApp {
         return data;
     }
 
-    async parseExcelData(content, type) {
-        // This is a placeholder - implement actual Excel parsing
-        // For now, try to parse as CSV or return mock data
-        console.log(`📝 Parsing ${type} data - content length: ${content?.length || 0}`);
-        
-        // If content is empty, return mock data for testing
-        if (!content || content.length === 0) {
-            console.warn(`⚠️ Empty content for ${type}, returning mock data`);
+    // In js/app.js - Replace the parseExcelData method
+
+async parseExcelData(content, type) {
+    console.log(`📝 Parsing ${type} data - content length: ${content?.length || 0}`);
+    
+    // If content is empty, return mock data
+    if (!content || content.length === 0) {
+        console.warn(`⚠️ Empty content for ${type}, returning mock data`);
+        return this.getMockData(type);
+    }
+    
+    try {
+        // Try to parse as CSV or plain text
+        const lines = content.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+            console.warn(`⚠️ Not enough lines for ${type}, returning mock data`);
             return this.getMockData(type);
         }
         
-        // Try to parse as CSV (simple parser)
-        try {
-            const lines = content.split('\n');
-            if (lines.length < 2) {
-                console.warn(`⚠️ Not enough lines for ${type}, returning mock data`);
-                return this.getMockData(type);
+        // Get headers from first line
+        const headerLine = lines[0];
+        const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        
+        console.log(`📋 Headers found:`, headers);
+        
+        const result = [];
+        
+        // Process each row
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            // Parse CSV with quotes support
+            const values = this.parseCSVLine(line);
+            
+            // Create row object
+            const row = {};
+            headers.forEach((header, index) => {
+                row[header] = values[index] || '';
+            });
+            
+            // Map to our expected format
+            const mappedRow = this.mapExcelRow(row, type);
+            if (mappedRow) {
+                result.push(mappedRow);
             }
-            
-            // Get headers from first line
-            const headers = lines[0].split(',').map(h => h.trim());
-            const result = [];
-            
-            // Process each row
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue;
-                
-                const values = line.split(',').map(v => v.trim());
-                const row = {};
-                
-                headers.forEach((header, index) => {
-                    row[header] = values[index] || '';
-                });
-                
-                // Map to our expected format
-                const mappedRow = this.mapExcelRow(row, type);
-                if (mappedRow) {
-                    result.push(mappedRow);
-                }
-            }
-            
-            console.log(`✅ Parsed ${result.length} rows for ${type}`);
-            return result;
-            
-        } catch (error) {
-            console.error(`❌ Error parsing ${type} data:`, error);
-            return this.getMockData(type);
+        }
+        
+        console.log(`✅ Parsed ${result.length} rows for ${type}`);
+        return result;
+        
+    } catch (error) {
+        console.error(`❌ Error parsing ${type} data:`, error);
+        return this.getMockData(type);
+    }
+}
+
+// Helper method to parse CSV lines with quotes
+parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
         }
     }
+    result.push(current.trim());
+    return result;
+}
 
-    mapExcelRow(row, type) {
-        try {
-            if (type === 'order') {
-                return {
-                    sku: row['SKU'] || row['sku'] || '',
-                    qty: parseFloat(row['Order Qty'] || row['order_qty'] || 0),
-                    supplier: row['Supplier'] || row['supplier'] || '',
-                    orderDate: row['Order Date'] || row['order_date'] || new Date().toISOString().split('T')[0],
-                    orderCode: row['Order Code'] || row['order_code'] || ''
-                };
-            } else if (type === 'delivery') {
-                return {
-                    sku: row['SKU'] || row['sku'] || '',
-                    qty: parseFloat(row['Delivery Qty'] || row['delivery_qty'] || 0),
-                    supplier: row['Supplier'] || row['supplier'] || '',
-                    deliveryDate: row['Est. Delivery Date'] || row['est_delivery_date'] || new Date().toISOString().split('T')[0],
-                    boxCode: row['Box Code'] || row['box_code'] || ''
-                };
-            } else if (type === 'actual') {
-                return {
-                    sku: row['SKU'] || row['sku'] || '',
-                    qty: parseFloat(row['Delivery Qty'] || row['delivery_qty'] || 0),
-                    supplier: row['Supplier'] || row['supplier'] || '',
-                    actualDate: row['Act. Delivery Date'] || row['act_delivery_date'] || new Date().toISOString().split('T')[0],
-                    boxCode: row['Box Code'] || row['box_code'] || ''
-                };
-            }
-        } catch (error) {
-            console.error('Error mapping row:', error);
-            return null;
+    // In js/app.js - Update mapExcelRow method
+
+mapExcelRow(row, type) {
+    try {
+        console.log(`📝 Mapping ${type} row:`, row);
+        
+        if (type === 'order') {
+            // Get values with fallbacks
+            const sku = row['SKU'] || row['sku'] || '';
+            const qty = parseFloat(row['Order Qty'] || row['order_qty'] || 0);
+            const supplier = row['Supplier'] || row['supplier'] || '';
+            const orderDate = row['Order Date'] || row['order_date'] || new Date().toISOString().split('T')[0];
+            const orderCode = row['Order Code'] || row['order_code'] || '';
+            
+            // Skip empty rows
+            if (!sku || qty === 0) return null;
+            
+            return {
+                sku: sku,
+                qty: qty,
+                supplier: supplier,
+                orderDate: orderDate,
+                orderCode: orderCode
+            };
+        } else if (type === 'delivery') {
+            const sku = row['SKU'] || row['sku'] || '';
+            const qty = parseFloat(row['Delivery Qty'] || row['delivery_qty'] || 0);
+            const supplier = row['Supplier'] || row['supplier'] || '';
+            const deliveryDate = row['Est. Delivery Date'] || row['est_delivery_date'] || new Date().toISOString().split('T')[0];
+            const boxCode = row['Box Code'] || row['box_code'] || '';
+            
+            if (!sku || qty === 0) return null;
+            
+            return {
+                sku: sku,
+                qty: qty,
+                supplier: supplier,
+                deliveryDate: deliveryDate,
+                boxCode: boxCode
+            };
+        } else if (type === 'actual') {
+            const sku = row['SKU'] || row['sku'] || '';
+            const qty = parseFloat(row['Delivery Qty'] || row['delivery_qty'] || 0);
+            const supplier = row['Supplier'] || row['supplier'] || '';
+            const actualDate = row['Act. Delivery Date'] || row['act_delivery_date'] || new Date().toISOString().split('T')[0];
+            const boxCode = row['Box Code'] || row['box_code'] || '';
+            
+            if (!sku || qty === 0) return null;
+            
+            return {
+                sku: sku,
+                qty: qty,
+                supplier: supplier,
+                actualDate: actualDate,
+                boxCode: boxCode
+            };
         }
+    } catch (error) {
+        console.error('❌ Error mapping row:', error);
         return null;
     }
+    return null;
+}
 
     getMockData(type) {
         // Return mock data for testing
