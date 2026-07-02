@@ -37,7 +37,7 @@ const CONFIG = {
     GOOGLE_DRIVE: {
         API_KEY: getEnv('VITE_GOOGLE_DRIVE_API_KEY', ''),
         CLIENT_ID: getEnv('VITE_GOOGLE_DRIVE_CLIENT_ID', ''),
-        SCOPES: 'https://www.googleapis.com/auth/drive.file',
+        SCOPES: 'https://www.googleapis.com/auth/drive.readonly',  // ← CHANGE THIS
         DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
     },
     
