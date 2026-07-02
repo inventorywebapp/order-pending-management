@@ -577,24 +577,38 @@ mapExcelRow(row, type) {
     return null;
 }
 
-// ✅ ADD THIS NEW METHOD: Convert Excel date serial numbers to proper date string
+// js/app.js - Replace convertExcelDate method
+
 convertExcelDate(value) {
     if (!value) return '';
     
-    // If it's already a string like "3/1/2026", return it as-is
+    // If it's already a string like "3/1/2026", parse it directly
     if (typeof value === 'string') {
         // Check if it's a date string
         const dateRegex = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
         if (dateRegex.test(value)) {
-            // Try to parse and format it consistently
             try {
                 const parts = value.split('/');
                 const month = parseInt(parts[0]);
                 const day = parseInt(parts[1]);
-                const year = parseInt(parts[2]) > 2000 ? parseInt(parts[2]) : 2000 + parseInt(parts[2]);
+                let year = parseInt(parts[2]);
+                
+                // Handle 2-digit year
+                if (year < 100) {
+                    year = year > 50 ? 1900 + year : 2000 + year;
+                }
+                
+                // Create date WITHOUT timezone conversion
                 const date = new Date(year, month - 1, day);
-                return date.toISOString().split('T')[0];
+                
+                // ✅ FIX: Use local date, not UTC
+                // Return as YYYY-MM-DD without timezone offset
+                const yearStr = date.getFullYear();
+                const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+                const dayStr = String(date.getDate()).padStart(2, '0');
+                return `${yearStr}-${monthStr}-${dayStr}`;
             } catch (e) {
+                console.warn('⚠️ Could not parse date string:', value);
                 return value;
             }
         }
@@ -604,8 +618,10 @@ convertExcelDate(value) {
     // If it's a number (Excel serial date)
     if (typeof value === 'number') {
         // Excel serial date: 1 = Jan 1, 1900
-        // Subtract 1 because Excel incorrectly treats 1900 as a leap year
+        // We need to adjust for the Excel 1900 leap year bug
         const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+        
+        // ✅ FIX: Use local date without timezone conversion
         const date = new Date(excelEpoch.getTime() + (value * 24 * 60 * 60 * 1000));
         
         // Check if date is valid
@@ -613,13 +629,19 @@ convertExcelDate(value) {
             return '';
         }
         
-        // Return as YYYY-MM-DD
-        return date.toISOString().split('T')[0];
+        // ✅ FIX: Return local date, not UTC
+        const yearStr = date.getFullYear();
+        const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+        const dayStr = String(date.getDate()).padStart(2, '0');
+        return `${yearStr}-${monthStr}-${dayStr}`;
     }
     
     // If it's a Date object
     if (value instanceof Date) {
-        return value.toISOString().split('T')[0];
+        const yearStr = value.getFullYear();
+        const monthStr = String(value.getMonth() + 1).padStart(2, '0');
+        const dayStr = String(value.getDate()).padStart(2, '0');
+        return `${yearStr}-${monthStr}-${dayStr}`;
     }
     
     return value || '';
