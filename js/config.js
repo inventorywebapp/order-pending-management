@@ -5,7 +5,8 @@
 const CONFIG = {
     // Google API Credentials
     CLIENT_ID: '16032621441-uiqg2dr6biekknpemrkgf6h9k1f1u4eh.apps.googleusercontent.com',
-    API_KEY: 'AIzaSyBAxsOA-A9qdnPbcmx6hJ39NIUM-lUSgTI',
+    // ⚠️ IMPORTANT: Replace YOUR_API_KEY with your actual key below
+    API_KEY: 'AIzaSyD_AX-uoXZuxwiNDfZMNapjwMgcYjOVZPs', // ← REPLACE WITH: AIzaSyD_AX-uoXZuxwiNDfZMNapjwMgcYjOVZPs
     SCOPES: 'https://www.googleapis.com/auth/drive.readonly',
 
     // Google Drive Folder IDs
@@ -16,39 +17,36 @@ const CONFIG = {
         ACTUAL: '1AlxxHhueUEuv03WPTPlssQ1fAr4IGoUG'
     },
 
-    // Column Name Mappings (for future-proofing)
+    // Column Name Mappings (Future-Proof)
     COLUMN_MAPPINGS: {
         order: {
-            sku: ['SKU', 'sku', 'Sku', 'Item Code', 'Item_Code'],
-            qty: ['Order Qty', 'Order_Qty', 'OrderQty', 'Qty', 'qty', 'Quantity'],
-            supplier: ['Supplier', 'supplier', 'Vendor', 'vendor', 'Vendor Name'],
-            date: ['Order Date', 'Order_Date', 'OrderDate', 'Date', 'date'],
-            code: ['Order Code', 'Order_Code', 'OrderCode', 'Code', 'code']
+            sku: ['SKU', 'sku', 'Sku', 'Item Code'],
+            qty: ['Order Qty', 'Order_Qty', 'OrderQty', 'Qty'],
+            supplier: ['Supplier', 'supplier', 'Vendor'],
+            date: ['Order Date', 'Order_Date', 'OrderDate', 'Date'],
+            code: ['Order Code', 'Order_Code', 'OrderCode']
         },
         delivery: {
-            sku: ['SKU', 'sku', 'Sku', 'Item Code', 'Item_Code'],
-            qty: ['Delivery Qty', 'Delivery_Qty', 'DeliveryQty', 'Qty', 'qty'],
-            supplier: ['Supplier', 'supplier', 'Vendor', 'vendor'],
-            date: ['Est. Delivery Date', 'Est_Delivery_Date', 'EstDeliveryDate', 'Date', 'date'],
-            box: ['Box Code', 'Box_Code', 'BoxCode', 'Box', 'box']
+            sku: ['SKU', 'sku', 'Sku'],
+            qty: ['Delivery Qty', 'Delivery_Qty', 'DeliveryQty'],
+            supplier: ['Supplier', 'supplier'],
+            date: ['Est. Delivery Date', 'Est_Delivery_Date', 'EstDeliveryDate'],
+            box: ['Box Code', 'Box_Code', 'BoxCode', 'Box']
         },
         actual: {
-            sku: ['SKU', 'sku', 'Sku', 'Item Code', 'Item_Code'],
-            qty: ['Delivery Qty', 'Delivery_Qty', 'DeliveryQty', 'Qty', 'qty'],
-            supplier: ['Supplier', 'supplier', 'Vendor', 'vendor'],
-            date: ['Act. Delivery Date', 'Act_Delivery_Date', 'ActDeliveryDate', 'Date', 'date'],
-            box: ['Box Code', 'Box_Code', 'BoxCode', 'Box', 'box']
+            sku: ['SKU', 'sku', 'Sku'],
+            qty: ['Delivery Qty', 'Delivery_Qty', 'DeliveryQty'],
+            supplier: ['Supplier', 'supplier'],
+            date: ['Act. Delivery Date', 'Act_Delivery_Date', 'ActDeliveryDate'],
+            box: ['Box Code', 'Box_Code', 'BoxCode', 'Box']
         }
     },
 
-    // App Settings
     APP: {
-        VERSION: '2.0.0',
-        NAME: 'Order Pending Management System',
-        AUTO_REFRESH: true,
-        MAX_TABLE_ROWS: 1000
+        VERSION: '3.0.0',
+        NAME: 'Order Pending Management',
+        AUTO_REFRESH: true
     }
 };
 
-// Freeze config to prevent modification
 Object.freeze(CONFIG);
