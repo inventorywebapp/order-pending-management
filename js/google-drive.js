@@ -5,10 +5,8 @@
 class GoogleDriveAPI {
     constructor() {
         this.isInitialized = false;
-        this.accessToken = null;
     }
 
-    // Initialize Google API
     async init() {
         try {
             await gapi.client.init({
@@ -17,81 +15,59 @@ class GoogleDriveAPI {
                 scope: CONFIG.SCOPES,
                 discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
             });
-
             this.isInitialized = true;
-            console.log('Google Drive API initialized successfully');
+            console.log('✅ Google Drive API initialized');
             return true;
         } catch (error) {
-            console.error('Failed to initialize Google Drive API:', error);
-            throw error;
+            console.error('❌ Google Drive init error:', error);
+            throw new Error('Failed to initialize Google Drive. Please check your API key and credentials.');
         }
     }
 
-    // Get files from a specific folder
-    async getFiles(folderId, fileTypes = ['.xlsx', '.xls']) {
+    async getFiles(folderId, extensions = ['.xlsx', '.xls']) {
         try {
-            const query = `'${folderId}' in parents and trashed = false`;
-            const response = await gapi.client.drive.files.list({
-                q: query,
-                fields: 'files(id, name, mimeType, modifiedTime, createdTime)',
+            const res = await gapi.client.drive.files.list({
+                q: `'${folderId}' in parents and trashed = false`,
+                fields: 'files(id, name, modifiedTime)',
                 orderBy: 'name'
             });
-
-            let files = response.result.files || [];
-
-            // Filter by file type if specified
-            if (fileTypes.length > 0) {
-                files = files.filter(f =>
-                    fileTypes.some(type => f.name.toLowerCase().endsWith(type))
-                );
+            let files = res.result.files || [];
+            if (extensions.length) {
+                files = files.filter(f => extensions.some(ext => f.name.toLowerCase().endsWith(ext)));
             }
-
             return files;
         } catch (error) {
-            console.error('Error getting files from folder:', error);
-            throw error;
+            console.error('Error fetching files:', error);
+            throw new Error('Failed to fetch files from Google Drive.');
         }
     }
 
-    // Download and parse Excel file
     async downloadExcel(fileId) {
         try {
-            const response = await gapi.client.drive.files.get({
-                fileId: fileId,
-                alt: 'media'
-            });
-
-            const blob = new Blob([new Uint8Array(response.body)], {
+            const res = await gapi.client.drive.files.get({ fileId, alt: 'media' });
+            const blob = new Blob([new Uint8Array(res.body)], {
                 type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             });
-
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = (e) => {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
                         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const json = XLSX.utils.sheet_to_json(sheet);
-                        resolve(json);
-                    } catch (error) {
-                        reject(error);
-                    }
+                        resolve(XLSX.utils.sheet_to_json(sheet));
+                    } catch (err) { reject(err); }
                 };
                 reader.onerror = reject;
                 reader.readAsArrayBuffer(blob);
             });
         } catch (error) {
             console.error('Error downloading file:', error);
-            throw error;
+            throw new Error('Failed to download Excel file from Google Drive.');
         }
     }
 
-    // Check if API is ready
-    isReady() {
-        return this.isInitialized;
-    }
+    isReady() { return this.isInitialized; }
 }
 
-// Create singleton instance
 const driveAPI = new GoogleDriveAPI();
