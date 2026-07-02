@@ -1,52 +1,62 @@
-// ============================================
-// CONFIGURATION
-// ============================================
-
+// Configuration
 const CONFIG = {
-    // Google API Credentials
-    CLIENT_ID: '16032621441-uiqg2dr6biekknpemrkgf6h9k1f1u4eh.apps.googleusercontent.com',
-    // ⚠️ IMPORTANT: Replace YOUR_API_KEY with your actual key below
-    API_KEY: 'AIzaSyD_AX-uoXZuxwiNDfZMNapjwMgcYjOVZPs', // ← REPLACE WITH: AIzaSyD_AX-uoXZuxwiNDfZMNapjwMgcYjOVZPs
-    SCOPES: 'https://www.googleapis.com/auth/drive.readonly',
-
-    // Google Drive Folder IDs
+    // Google Drive API Configuration
+    GOOGLE_DRIVE: {
+        API_KEY: 'YOUR_GOOGLE_DRIVE_API_KEY', // Replace with your API key
+        CLIENT_ID: 'YOUR_GOOGLE_DRIVE_CLIENT_ID', // Replace with your Client ID
+        SCOPES: 'https://www.googleapis.com/auth/drive.file',
+        DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+    },
+    
+    // Folder IDs from Google Drive
     FOLDERS: {
         MAIN: '12PxB1WMGrLov54kajAGCHqnEJOjqtJlW',
         ORDER: '13UZpplt52LNel3dXzxF33-CYLxOV03cS',
         DELIVERY: '1RyPAqPIZwygu13TKscW2zzRzpYr8c7Xv',
         ACTUAL: '1AlxxHhueUEuv03WPTPlssQ1fAr4IGoUG'
     },
-
-    // Column Name Mappings (Future-Proof)
-    COLUMN_MAPPINGS: {
-        order: {
-            sku: ['SKU', 'sku', 'Sku', 'Item Code'],
-            qty: ['Order Qty', 'Order_Qty', 'OrderQty', 'Qty'],
-            supplier: ['Supplier', 'supplier', 'Vendor'],
-            date: ['Order Date', 'Order_Date', 'OrderDate', 'Date'],
-            code: ['Order Code', 'Order_Code', 'OrderCode']
+    
+    // Column mappings for Excel files
+    COLUMNS: {
+        ORDER: {
+            SKU: 'SKU',
+            QTY: 'Order Qty',
+            SUPPLIER: 'Supplier',
+            ORDER_DATE: 'Order Date',
+            ORDER_CODE: 'Order Code'
         },
-        delivery: {
-            sku: ['SKU', 'sku', 'Sku'],
-            qty: ['Delivery Qty', 'Delivery_Qty', 'DeliveryQty'],
-            supplier: ['Supplier', 'supplier'],
-            date: ['Est. Delivery Date', 'Est_Delivery_Date', 'EstDeliveryDate'],
-            box: ['Box Code', 'Box_Code', 'BoxCode', 'Box']
+        DELIVERY: {
+            SKU: 'SKU',
+            QTY: 'Delivery Qty',
+            SUPPLIER: 'Supplier',
+            DELIVERY_DATE: 'Est. Delivery Date',
+            BOX_CODE: 'Box Code'
         },
-        actual: {
-            sku: ['SKU', 'sku', 'Sku'],
-            qty: ['Delivery Qty', 'Delivery_Qty', 'DeliveryQty'],
-            supplier: ['Supplier', 'supplier'],
-            date: ['Act. Delivery Date', 'Act_Delivery_Date', 'ActDeliveryDate'],
-            box: ['Box Code', 'Box_Code', 'BoxCode', 'Box']
+        ACTUAL: {
+            SKU: 'SKU',
+            QTY: 'Delivery Qty',
+            SUPPLIER: 'Supplier',
+            ACTUAL_DATE: 'Act. Delivery Date',
+            BOX_CODE: 'Box Code'
         }
     },
-
-    APP: {
-        VERSION: '3.0.0',
-        NAME: 'Order Pending Management',
-        AUTO_REFRESH: true
+    
+    // API Endpoints (for backend)
+    API: {
+        BASE_URL: window.location.hostname === 'localhost' 
+            ? 'http://localhost:5000/api' 
+            : 'https://your-backend-url.com/api',
+        ENDPOINTS: {
+            PROCESS_ORDER: '/process-order',
+            GET_DATA: '/get-data',
+            ANALYZE: '/analyze',
+            EXPORT: '/export'
+        }
     }
 };
 
-Object.freeze(CONFIG);
+// Security: Don't expose API keys in production - use environment variables
+// This is a placeholder - in production, these should be loaded from environment variables
+if (typeof CONFIG.GOOGLE_DRIVE.API_KEY === 'YOUR_GOOGLE_DRIVE_API_KEY') {
+    console.warn('⚠️ Please configure your Google Drive API credentials in config.js');
+}
