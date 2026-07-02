@@ -2,12 +2,18 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 
+// Debug: Check environment variables
+console.log('🔍 === ENVIRONMENT VARIABLES DEBUG ===');
+console.log('VITE_GOOGLE_DRIVE_API_KEY exists:', !!process.env.VITE_GOOGLE_DRIVE_API_KEY);
+console.log('VITE_GOOGLE_DRIVE_API_KEY length:', process.env.VITE_GOOGLE_DRIVE_API_KEY?.length || 0);
+console.log('VITE_GOOGLE_DRIVE_CLIENT_ID exists:', !!process.env.VITE_GOOGLE_DRIVE_CLIENT_ID);
+console.log('VITE_GOOGLE_DRIVE_CLIENT_ID length:', process.env.VITE_GOOGLE_DRIVE_CLIENT_ID?.length || 0);
+console.log('🔍 === END DEBUG ===');
+
 export default defineConfig({
-    // Base path for GitHub Pages
     base: '/order-pending-management/',
     
     define: {
-        // Inject environment variables
         'import.meta.env.VITE_GOOGLE_DRIVE_API_KEY': JSON.stringify(process.env.VITE_GOOGLE_DRIVE_API_KEY || ''),
         'import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID': JSON.stringify(process.env.VITE_GOOGLE_DRIVE_CLIENT_ID || ''),
     },
