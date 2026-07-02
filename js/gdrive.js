@@ -1,24 +1,53 @@
+// js/gdrive.js
 // Google Drive Integration
+
 class GoogleDriveManager {
     constructor() {
-        this.apiKey = CONFIG.GOOGLE_DRIVE.API_KEY;
-        this.clientId = CONFIG.GOOGLE_DRIVE.CLIENT_ID;
-        this.scopes = CONFIG.GOOGLE_DRIVE.SCOPES;
-        this.discoveryDocs = CONFIG.GOOGLE_DRIVE.DISCOVERY_DOCS;
+        this.apiKey = CONFIG?.GOOGLE_DRIVE?.API_KEY || '';
+        this.clientId = CONFIG?.GOOGLE_DRIVE?.CLIENT_ID || '';
+        this.scopes = CONFIG?.GOOGLE_DRIVE?.SCOPES || 'https://www.googleapis.com/auth/drive.file';
+        this.discoveryDocs = CONFIG?.GOOGLE_DRIVE?.DISCOVERY_DOCS || ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
         this.tokenClient = null;
         this.isAuthenticated = false;
+        console.log('🔧 GoogleDriveManager initialized');
     }
 
     // Initialize Google Drive API
     init() {
         return new Promise((resolve, reject) => {
             try {
-                gapi.load('client', () => {
-                    gapi.client.init({
-                        apiKey: this.apiKey,
-                        discoveryDocs: this.discoveryDocs,
-                    }).then(() => {
-                        // Initialize OAuth
+                if (typeof gapi === 'undefined') {
+                    console.warn('⚠️ gapi not loaded yet, waiting...');
+                    // Wait for gapi to load
+                    const checkGapi = setInterval(() => {
+                        if (typeof gapi !== 'undefined') {
+                            clearInterval(checkGapi);
+                            this.initGapi(resolve, reject);
+                        }
+                    }, 100);
+                    // Timeout after 10 seconds
+                    setTimeout(() => {
+                        clearInterval(checkGapi);
+                        reject(new Error('Timeout loading Google API'));
+                    }, 10000);
+                    return;
+                }
+                this.initGapi(resolve, reject);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    initGapi(resolve, reject) {
+        try {
+            gapi.load('client', () => {
+                gapi.client.init({
+                    apiKey: this.apiKey,
+                    discoveryDocs: this.discoveryDocs,
+                }).then(() => {
+                    // Initialize OAuth
+                    if (typeof google !== 'undefined' && google.accounts) {
                         this.tokenClient = google.accounts.oauth2.initTokenClient({
                             client_id: this.clientId,
                             scope: this.scopes,
@@ -28,6 +57,7 @@ class GoogleDriveManager {
                                     return;
                                 }
                                 this.isAuthenticated = true;
+                                console.log('✅ Google Drive authenticated');
                                 resolve();
                             },
                         });
@@ -39,12 +69,15 @@ class GoogleDriveManager {
                         } else {
                             resolve();
                         }
-                    }).catch(reject);
-                });
-            } catch (error) {
-                reject(error);
-            }
-        });
+                    } else {
+                        console.warn('⚠️ Google OAuth not available, attempting without auth');
+                        resolve();
+                    }
+                }).catch(reject);
+            });
+        } catch (error) {
+            reject(error);
+        }
     }
 
     // Authenticate user
@@ -52,6 +85,11 @@ class GoogleDriveManager {
         return new Promise((resolve, reject) => {
             if (this.isAuthenticated) {
                 resolve();
+                return;
+            }
+            
+            if (!this.tokenClient) {
+                reject(new Error('Token client not initialized'));
                 return;
             }
             
@@ -124,10 +162,15 @@ class GoogleDriveManager {
             form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
             form.append('file', file);
             
+            const token = gapi.client.getToken();
+            if (!token) {
+                throw new Error('No auth token available');
+            }
+            
             const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                 method: 'POST',
                 headers: {
-                    Authorization: `Bearer ${gapi.client.getToken().access_token}`,
+                    Authorization: `Bearer ${token.access_token}`,
                 },
                 body: form,
             });
@@ -161,5 +204,13 @@ class GoogleDriveManager {
     }
 }
 
-// Initialize Google Drive Manager
+// Create and expose the driveManager instance
 const driveManager = new GoogleDriveManager();
+
+// Make it available globally
+if (typeof window !== 'undefined') {
+    window.driveManager = driveManager;
+}
+
+// Export for module usage
+export { driveManager, GoogleDriveManager };
