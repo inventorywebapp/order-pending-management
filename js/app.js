@@ -1457,9 +1457,29 @@ processPendingOrders() {
         `).join('');
     }
 
-    renderPending() {
-        const tbody = document.getElementById('pendingBody');
-        tbody.innerHTML = this.data.pending.map(pending => `
+    // js/app.js - Update renderPending to show FIFO details
+
+renderPending() {
+    const tbody = document.getElementById('pendingBody');
+    
+    if (this.data.pending.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No pending orders</td></tr>`;
+        return;
+    }
+    
+    tbody.innerHTML = this.data.pending.map(pending => {
+        // Build FIFO breakdown
+        let fifoBreakdown = '';
+        if (pending.orderStatus && pending.orderStatus.length > 0) {
+            fifoBreakdown = pending.orderStatus.map(os => 
+                `<div style="font-size: 11px; color: #666;">
+                    ${os.orderDate}: ${os.delivered}/${os.qty} delivered
+                    ${os.remaining > 0 ? `(Remaining: ${os.remaining})` : '✅'}
+                </div>`
+            ).join('');
+        }
+        
+        return `
             <tr>
                 <td><strong>${pending.sku}</strong></td>
                 <td>${pending.totalOrder}</td>
@@ -1469,8 +1489,17 @@ processPendingOrders() {
                 <td>${this.formatDate(pending.orderDate)}</td>
                 <td><span class="status-badge status-${pending.status}">${pending.status}</span></td>
             </tr>
-        `).join('');
-    }
+            ${fifoBreakdown ? `<tr><td colspan="7" style="padding: 4px 16px; background: #f9fafb;">
+                <details>
+                    <summary style="cursor: pointer; font-size: 12px; color: #6B7280;">
+                        📋 FIFO Breakdown
+                    </summary>
+                    <div style="margin-top: 4px;">${fifoBreakdown}</div>
+                </details>
+            </td></tr>` : ''}
+        `;
+    }).join('');
+}
 
     renderAnalysis() {
         const type = document.getElementById('analysisType').value;
