@@ -200,24 +200,28 @@ class GoogleDriveManager {
 
     // List files in a folder
     async listFiles(folderId) {
-        console.log('🔧 Listing files in folder:', folderId);
-        try {
-            await this.authenticate();
-            console.log('✅ Authenticated, listing files...');
-            
-            const response = await gapi.client.drive.files.list({
-                q: `'${folderId}' in parents and trashed=false`,
-                fields: 'files(id, name, mimeType, modifiedTime, createdTime)',
-                orderBy: 'modifiedTime desc',
-            });
-            
-            console.log(`✅ Found ${response.result.files.length} files`);
-            return response.result.files;
-        } catch (error) {
-            console.error('❌ Error listing files:', error);
-            throw error;
-        }
+    console.log('🔧 Listing files in folder:', folderId);
+    try {
+        await this.authenticate();
+        console.log('✅ Authenticated, listing files...');
+        
+        const response = await gapi.client.drive.files.list({
+            q: `'${folderId}' in parents and trashed=false`,
+            fields: 'files(id, name, mimeType, modifiedTime, createdTime, parents)',
+            orderBy: 'modifiedTime desc',
+            supportsAllDrives: true,  // ← ADD THIS
+            includeItemsFromAllDrives: true,  // ← ADD THIS
+        });
+        
+        console.log(`✅ Found ${response.result.files.length} files in folder`);
+        // Log file names for debugging
+        response.result.files.forEach(f => console.log(`   📄 ${f.name} (${f.mimeType})`));
+        return response.result.files;
+    } catch (error) {
+        console.error('❌ Error listing files:', error);
+        throw error;
     }
+}
 
     // Download file content
     async downloadFile(fileId) {
