@@ -54,7 +54,6 @@ class OrderManagementApp {
             } catch (authError) {
                 console.warn('⚠️ Authentication not completed:', authError.message);
                 this.showNotification('Please sign in to load data', 'info');
-                // Still render UI, user can click refresh after signing in
             }
         } catch (error) {
             console.error('❌ Failed to initialize Google Drive:', error);
@@ -87,7 +86,6 @@ class OrderManagementApp {
             existingSignIn.remove();
         }
         
-        // Only show if not authenticated
         if (driveManager.isAuthenticated) return;
         
         const container = document.createElement('div');
@@ -110,7 +108,6 @@ class OrderManagementApp {
             </button>
         `;
         
-        // Insert after stats grid
         const statsGrid = dashboard.querySelector('.stats-grid');
         if (statsGrid) {
             statsGrid.parentNode.insertBefore(container, statsGrid.nextSibling);
@@ -145,11 +142,10 @@ class OrderManagementApp {
             document.getElementById('sidebar').classList.toggle('open');
         });
 
-        // Refresh button - Updated with authentication check
+        // Refresh button
         document.getElementById('refreshData').addEventListener('click', async () => {
             console.log('🔄 Refresh button clicked');
             try {
-                // Check if we need to authenticate
                 if (!driveManager.isAuthenticated) {
                     console.log('🔧 Not authenticated, showing sign-in...');
                     this.showNotification('Please sign in to continue', 'info');
@@ -173,6 +169,12 @@ class OrderManagementApp {
         // Filter button
         document.getElementById('filterBtn').addEventListener('click', () => {
             this.openFilterModal();
+        });
+
+        // Load More button for activities
+        document.getElementById('loadMoreBtn')?.addEventListener('click', () => {
+            const offset = this._activityOffset || 10;
+            this.updateActivity(10, offset);
         });
 
         // Close modals
@@ -235,24 +237,22 @@ class OrderManagementApp {
             this.filterPendingBySupplier(e.target.value);
         });
 
-        // Analysis
-        document.getElementById('analysisType').addEventListener('change', () => {
+        // KPI Supplier Filter
+        document.getElementById('kpiSupplierFilter')?.addEventListener('change', () => {
+            this.renderSupplierKPIs();
+        });
+
+        // Analysis type
+        document.getElementById('analysisType')?.addEventListener('change', () => {
             this.renderAnalysis();
+        });
+
+        document.getElementById('exportBtn')?.addEventListener('click', () => {
+            this.exportData();
         });
 
         // Drop zones
         this.setupDropZones();
-
-        // Load More button
-        document.getElementById('loadMoreBtn')?.addEventListener('click', () => {
-            const offset = this._activityOffset || 10;
-            this.updateActivity(10, offset);
-        });
-
-        // Supplier KPI filter
-        document.getElementById('kpiSupplierFilter')?.addEventListener('change', () => {
-            this.renderSupplierKPIs();
-        });
     }
 
     async loadData() {
@@ -260,13 +260,11 @@ class OrderManagementApp {
             this.showLoading(true);
             console.log('📊 Loading data from Google Drive...');
             
-            // Check authentication first
             if (!driveManager.isAuthenticated) {
                 console.warn('⚠️ Not authenticated, attempting to authenticate...');
                 await driveManager.authenticate();
             }
             
-            // Load files from all folders
             console.log('📁 Loading order files...');
             const orderFiles = await driveManager.listFiles(CONFIG.FOLDERS.ORDER);
             console.log(`📁 Found ${orderFiles.length} order files`);
@@ -279,7 +277,6 @@ class OrderManagementApp {
             const actualFiles = await driveManager.listFiles(CONFIG.FOLDERS.ACTUAL);
             console.log(`📁 Found ${actualFiles.length} actual received files`);
             
-            // Process Excel files
             console.log('📊 Processing Excel files...');
             const orders = await this.processExcelFiles(orderFiles, 'order');
             const deliveries = await this.processExcelFiles(deliveryFiles, 'delivery');
@@ -287,18 +284,15 @@ class OrderManagementApp {
             
             console.log(`📊 Orders: ${orders.length}, Deliveries: ${deliveries.length}, Actual: ${actual.length}`);
             
-            // Update data
             this.data.orders = orders;
             this.data.deliveries = deliveries;
             this.data.actual = actual;
             
-            // Process pending orders
             this.processPendingOrders();
             
             this.data.processed = true;
             this.showLoading(false);
             
-            // Update UI
             this.updateStats();
             this.updateActivity(10, 0);
             this.addMismatchChecker();
@@ -567,6 +561,7 @@ class OrderManagementApp {
                     }
                     
                     const date = new Date(year, month - 1, day);
+                    
                     const yearStr = date.getFullYear();
                     const monthStr = String(date.getMonth() + 1).padStart(2, '0');
                     const dayStr = String(date.getDate()).padStart(2, '0');
@@ -582,9 +577,11 @@ class OrderManagementApp {
         if (typeof value === 'number') {
             const excelEpoch = new Date(1899, 11, 30);
             const date = new Date(excelEpoch.getTime() + (value * 24 * 60 * 60 * 1000));
+            
             if (isNaN(date.getTime())) {
                 return '';
             }
+            
             const yearStr = date.getFullYear();
             const monthStr = String(date.getMonth() + 1).padStart(2, '0');
             const dayStr = String(date.getDate()).padStart(2, '0');
@@ -753,12 +750,268 @@ class OrderManagementApp {
         console.log(`✅ Processed ${pending.length} pending groups with FIFO`);
     }
 
-    // ============ NEW MISMATCH DETECTION FEATURES ============
+    // ============ DASHBOARD METHODS ============
+
+    renderDashboard() {
+        this.updateStats();
+        this.updateActivity(10, 0);
+        this.addMismatchChecker();
+        this.addSignInButton();
+        this.renderSupplierKPIs();
+        this.updateSupplierKPIFilter();
+    }
+
+    updateStats() {
+        const totalQty = this.data.orders.reduce((sum, o) => sum + o.qty, 0);
+        const totalRecords = this.data.orders.length;
+        const totalDeliveries = this.data.deliveries.reduce((sum, d) => sum + d.qty, 0);
+        
+        let fulfilledQty = 0;
+        let excessQty = 0;
+        let pendingQty = 0;
+        let pendingRecords = 0;
+        
+        this.data.pending.forEach(p => {
+            if (p.status === 'completed' || p.status === 'over-delivery') {
+                fulfilledQty += p.totalOrder;
+            } else if (p.status === 'partial') {
+                fulfilledQty += p.delivered;
+                pendingQty += p.remaining;
+                pendingRecords++;
+            } else {
+                pendingQty += p.remaining || p.totalOrder;
+                pendingRecords++;
+            }
+            if (p.status === 'over-delivery') {
+                excessQty += p.excess || 0;
+            }
+        });
+        
+        const fulfillmentRate = totalQty > 0 ? Math.round((fulfilledQty / totalQty) * 100) : 0;
+        
+        // Update new dashboard elements
+        const totalOrdersQtyEl = document.getElementById('totalOrdersQty');
+        const totalOrdersRecordsEl = document.getElementById('totalOrdersRecords');
+        const fulfillmentRateEl = document.getElementById('fulfillmentRate');
+        const fulfillmentDetailsEl = document.getElementById('fulfillmentDetails');
+        const pendingOrdersQtyEl = document.getElementById('pendingOrdersQty');
+        const pendingOrdersRecordsEl = document.getElementById('pendingOrdersRecords');
+        const excessDeliveredEl = document.getElementById('excessDelivered');
+        
+        if (totalOrdersQtyEl) totalOrdersQtyEl.textContent = totalQty.toLocaleString();
+        if (totalOrdersRecordsEl) totalOrdersRecordsEl.textContent = `(${totalRecords} records)`;
+        if (fulfillmentRateEl) fulfillmentRateEl.textContent = `${fulfillmentRate}%`;
+        if (fulfillmentDetailsEl) fulfillmentDetailsEl.textContent = `${fulfilledQty.toLocaleString()} / ${totalQty.toLocaleString()} fulfilled`;
+        if (pendingOrdersQtyEl) pendingOrdersQtyEl.textContent = pendingQty.toLocaleString();
+        if (pendingOrdersRecordsEl) pendingOrdersRecordsEl.textContent = `(${pendingRecords} records)`;
+        if (excessDeliveredEl) excessDeliveredEl.textContent = excessQty.toLocaleString();
+        
+        // Also update old stat cards for backward compatibility
+        const totalOrdersEl = document.getElementById('totalOrders');
+        const completedOrdersEl = document.getElementById('completedOrders');
+        const pendingOrdersEl = document.getElementById('pendingOrders');
+        const totalDeliveriesEl = document.getElementById('totalDeliveries');
+        
+        if (totalOrdersEl) totalOrdersEl.textContent = totalRecords;
+        if (completedOrdersEl) completedOrdersEl.textContent = this.data.pending.filter(p => p.status === 'completed' || p.status === 'over-delivery').length;
+        if (pendingOrdersEl) pendingOrdersEl.textContent = pendingRecords;
+        if (totalDeliveriesEl) totalDeliveriesEl.textContent = totalDeliveries.toLocaleString();
+    }
+
+    updateActivity(limit = 10, offset = 0) {
+        const activityList = document.getElementById('activityList');
+        const activityCount = document.getElementById('activityCount');
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        
+        const activities = [];
+        
+        this.data.orders.forEach(order => {
+            activities.push({
+                type: 'order',
+                message: `Order ${order.orderCode || 'N/A'}: ${order.sku} ×${order.qty} from ${order.supplier}`,
+                date: order.orderDate,
+                timestamp: new Date(order.orderDate).getTime()
+            });
+        });
+        
+        this.data.deliveries.forEach(delivery => {
+            activities.push({
+                type: 'delivery',
+                message: `Delivery: ${delivery.sku} ×${delivery.qty} from ${delivery.supplier} (Box: ${delivery.boxCode || 'N/A'})`,
+                date: delivery.deliveryDate,
+                timestamp: new Date(delivery.deliveryDate).getTime()
+            });
+        });
+        
+        this.data.actual.forEach(actual => {
+            activities.push({
+                type: 'actual',
+                message: `Actual Received: ${actual.sku} ×${actual.qty} from ${actual.supplier}`,
+                date: actual.actualDate,
+                timestamp: new Date(actual.actualDate).getTime()
+            });
+        });
+        
+        // Sort by date (newest first)
+        activities.sort((a, b) => b.timestamp - a.timestamp);
+        
+        const total = activities.length;
+        const paginated = activities.slice(offset, offset + limit);
+        const hasMore = offset + limit < total;
+        
+        this._activities = activities;
+        this._activityOffset = offset + limit;
+        
+        if (activityCount) {
+            activityCount.textContent = `${total} activities`;
+        }
+        
+        if (loadMoreBtn) {
+            loadMoreBtn.style.display = hasMore ? 'block' : 'none';
+            loadMoreBtn.disabled = !hasMore;
+            loadMoreBtn.textContent = hasMore ? `Load More (${Math.min(limit, total - offset - limit)} remaining)` : 'All loaded';
+        }
+        
+        if (paginated.length === 0) {
+            activityList.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--gray-500);">No recent activity</div>`;
+            return;
+        }
+        
+        activityList.innerHTML = paginated.map(activity => `
+            <div class="activity-item">
+                <div class="activity-icon ${activity.type}">
+                    <i class="fas ${activity.type === 'order' ? 'fa-shopping-cart' : activity.type === 'delivery' ? 'fa-truck' : 'fa-check-circle'}"></i>
+                </div>
+                <div class="activity-content">
+                    <p>${activity.message}</p>
+                    <small>${this.formatDate(activity.date)}</small>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    renderSupplierKPIs() {
+        const filter = document.getElementById('kpiSupplierFilter')?.value || '';
+        const grid = document.getElementById('supplierKpiGrid');
+        if (!grid) return;
+        
+        const supplierMap = new Map();
+        this.data.pending.forEach(p => {
+            if (!supplierMap.has(p.supplier)) {
+                supplierMap.set(p.supplier, {
+                    total: 0,
+                    fulfilled: 0,
+                    pending: 0,
+                    excess: 0,
+                    completed: 0,
+                    overDelivery: 0
+                });
+            }
+            const entry = supplierMap.get(p.supplier);
+            entry.total += p.totalOrder;
+            if (p.status === 'completed' || p.status === 'over-delivery') {
+                entry.fulfilled += p.totalOrder;
+                entry.completed++;
+            } else if (p.status === 'partial') {
+                entry.fulfilled += p.delivered;
+                entry.pending += p.remaining;
+            } else {
+                entry.pending += p.remaining || p.totalOrder;
+            }
+            if (p.status === 'over-delivery') {
+                entry.excess += p.excess || 0;
+                entry.overDelivery++;
+            }
+        });
+        
+        let data = Array.from(supplierMap.entries()).map(([name, data]) => ({
+            name,
+            ...data
+        }));
+        
+        if (filter) {
+            data = data.filter(d => d.name === filter);
+        }
+        
+        data.sort((a, b) => b.total - a.total);
+        
+        if (data.length === 0) {
+            grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--gray-500);">No suppliers found</div>`;
+            return;
+        }
+        
+        grid.innerHTML = data.map(supplier => {
+            const fulfillmentRate = supplier.total > 0 ? Math.round((supplier.fulfilled / supplier.total) * 100) : 0;
+            const barColor = fulfillmentRate >= 100 ? '#10B981' : fulfillmentRate >= 50 ? '#F59E0B' : '#EF4444';
+            
+            return `
+                <div class="supplier-kpi-card" style="border-left-color: ${barColor};">
+                    <div class="supplier-name">${supplier.name}</div>
+                    <div class="kpi-row">
+                        <span class="label">Total Ordered</span>
+                        <span class="value">${supplier.total.toLocaleString()}</span>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="label">Fulfilled</span>
+                        <span class="value success">${supplier.fulfilled.toLocaleString()}</span>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="label">Pending</span>
+                        <span class="value warning">${supplier.pending.toLocaleString()}</span>
+                    </div>
+                    ${supplier.excess > 0 ? `
+                        <div class="kpi-row">
+                            <span class="label">Excess Delivered</span>
+                            <span class="value high">${supplier.excess.toLocaleString()}</span>
+                        </div>
+                    ` : ''}
+                    <div style="margin-top: 8px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--gray-500);">
+                            <span>Fulfillment Rate</span>
+                            <span style="font-weight: 600; color: ${barColor};">${fulfillmentRate}%</span>
+                        </div>
+                        <div class="progress-bar" style="margin-top: 2px;">
+                            <div class="progress-fill" style="width: ${Math.min(fulfillmentRate, 100)}%; background: ${barColor};"></div>
+                        </div>
+                    </div>
+                    ${supplier.overDelivery > 0 ? `
+                        <div style="margin-top: 6px; font-size: 11px; color: #EF4444; background: #FEF2F2; padding: 2px 8px; border-radius: 4px; display: inline-block;">
+                            ⚠️ ${supplier.overDelivery} over-delivery(s)
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    updateSupplierKPIFilter() {
+        const select = document.getElementById('kpiSupplierFilter');
+        if (!select) return;
+        
+        const suppliers = [...new Set(this.data.orders.map(o => o.supplier))];
+        const currentValue = select.value;
+        
+        select.innerHTML = '<option value="">All Suppliers</option>';
+        suppliers.forEach(supplier => {
+            select.innerHTML += `<option value="${supplier}">${supplier}</option>`;
+        });
+        select.value = currentValue;
+        
+        if (!select._listenerAdded) {
+            select.addEventListener('change', () => {
+                this.renderSupplierKPIs();
+            });
+            select._listenerAdded = true;
+        }
+    }
+
+    // ============ MISMATCH DETECTION ============
 
     findQuantityMismatches() {
         const mismatches = [];
-        
         const orderMap = new Map();
+        const deliveryMap = new Map();
+        
         this.data.orders.forEach(order => {
             const key = `${order.sku}-${order.supplier}`;
             if (!orderMap.has(key)) {
@@ -767,7 +1020,6 @@ class OrderManagementApp {
             orderMap.get(key).totalOrder += order.qty;
         });
         
-        const deliveryMap = new Map();
         this.data.deliveries.forEach(delivery => {
             const key = `${delivery.sku}-${delivery.supplier}`;
             if (!deliveryMap.has(key)) {
@@ -974,9 +1226,21 @@ class OrderManagementApp {
 
     addMismatchChecker() {
         const dashboard = document.getElementById('view-dashboard');
-        const existingChecker = document.querySelector('.mismatch-checker');
-        if (existingChecker) {
-            existingChecker.remove();
+        const existingChecker = document.getElementById('mismatchCheckerContainer');
+        if (!dashboard) return;
+        
+        // Check if container exists, create if not
+        let container = document.getElementById('mismatchCheckerContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'mismatchCheckerContainer';
+            // Insert after supplier kpi section
+            const supplierSection = document.querySelector('.supplier-kpi-section');
+            if (supplierSection) {
+                supplierSection.parentNode.insertBefore(container, supplierSection.nextSibling);
+            } else {
+                dashboard.appendChild(container);
+            }
         }
         
         const skuMismatches = this.findSKUsNotInOrder();
@@ -984,207 +1248,48 @@ class OrderManagementApp {
         const hasOverDelivery = quantityMismatches.some(m => m.type === 'over-delivery' || m.type === 'no-order');
         const totalIssues = skuMismatches.length + quantityMismatches.length;
         
-        const container = document.createElement('div');
-        container.className = 'mismatch-checker';
-        container.style.cssText = `
-            margin: 20px 0;
-            padding: 16px 20px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            border-left: 4px solid ${totalIssues > 0 ? '#EF4444' : '#10B981'};
-        `;
-        
         container.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <i class="fas fa-exclamation-triangle" style="color: ${totalIssues > 0 ? '#EF4444' : '#10B981'}; font-size: 24px;"></i>
-                    <div>
-                        <h4 style="font-weight: 600; margin: 0;">Mismatch Checker</h4>
-                        <p style="margin: 0; color: var(--gray-500); font-size: 14px;">
-                            ${totalIssues === 0 ? '✅ All SKUs and quantities match!' : `⚠️ ${totalIssues} issue(s) found`}
-                        </p>
+            <div class="mismatch-checker" style="border-left: 4px solid ${totalIssues > 0 ? '#EF4444' : '#10B981'};">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <i class="fas fa-exclamation-triangle" style="color: ${totalIssues > 0 ? '#EF4444' : '#10B981'}; font-size: 24px;"></i>
+                        <div>
+                            <h4 style="font-weight: 600; margin: 0;">Mismatch Checker</h4>
+                            <p style="margin: 0; color: var(--gray-500); font-size: 14px;">
+                                ${totalIssues === 0 ? '✅ All SKUs and quantities match!' : `⚠️ ${totalIssues} issue(s) found`}
+                            </p>
+                        </div>
                     </div>
+                    ${totalIssues > 0 ? `
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            ${hasOverDelivery ? '<span class="status-badge status-over-delivery">⚠️ Over-Delivery</span>' : ''}
+                            ${skuMismatches.length > 0 ? `<span class="status-badge status-mismatch">🔄 ${skuMismatches.length} SKU Mismatch</span>` : ''}
+                            ${quantityMismatches.filter(m => m.type !== 'over-delivery').length > 0 ? `<span class="status-badge status-partial">📊 Quantity Issues</span>` : ''}
+                        </div>
+                    ` : ''}
                 </div>
                 ${totalIssues > 0 ? `
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        ${hasOverDelivery ? '<span class="status-badge status-over-delivery">⚠️ Over-Delivery</span>' : ''}
-                        ${skuMismatches.length > 0 ? `<span class="status-badge status-mismatch">🔄 ${skuMismatches.length} SKU Mismatch</span>` : ''}
-                        ${quantityMismatches.filter(m => m.type !== 'over-delivery').length > 0 ? `<span class="status-badge status-partial">📊 Quantity Issues</span>` : ''}
+                    <div style="margin-top: 12px; display: flex; gap: 8px;">
+                        <button class="btn-primary" id="checkMismatches">
+                            <i class="fas fa-search"></i> View Details
+                        </button>
                     </div>
-                ` : ''}
+                ` : `
+                    <div style="margin-top: 8px;">
+                        <button class="btn-secondary" id="checkMismatches">
+                            <i class="fas fa-check"></i> Check Again
+                        </button>
+                    </div>
+                `}
             </div>
-            ${totalIssues > 0 ? `
-                <div style="margin-top: 12px; display: flex; gap: 8px;">
-                    <button class="btn-primary" id="checkMismatches">
-                        <i class="fas fa-search"></i> View Details
-                    </button>
-                </div>
-            ` : `
-                <div style="margin-top: 8px;">
-                    <button class="btn-secondary" id="checkMismatches">
-                        <i class="fas fa-check"></i> Check Again
-                    </button>
-                </div>
-            `}
         `;
-        
-        const statsGrid = dashboard.querySelector('.stats-grid');
-        if (statsGrid) {
-            statsGrid.parentNode.insertBefore(container, statsGrid.nextSibling);
-        } else {
-            dashboard.prepend(container);
-        }
         
         document.getElementById('checkMismatches')?.addEventListener('click', () => {
             this.renderMismatchDetails();
         });
     }
 
-    // ============ EXISTING FEATURES ============
-
-    exportPendingOrders(format = 'csv') {
-        const pendingData = this.data.pending.map(p => ({
-            'SKU': p.sku,
-            'Supplier': p.supplier,
-            'Total Order': p.totalOrder,
-            'Delivered': p.delivered,
-            'Remaining': p.remaining,
-            'Excess': p.excess || 0,
-            'Status': p.status,
-            'Status Note': p.statusNote || '',
-            'Order Date': p.orderDate,
-            'Order Code': p.orderCode
-        }));
-
-        if (format === 'csv') {
-            this.exportToCSV(pendingData, 'pending_orders');
-        } else if (format === 'excel') {
-            this.exportToExcel(pendingData, 'pending_orders');
-        } else if (format === 'pdf') {
-            this.exportToPDF(pendingData);
-        }
-    }
-
-    exportToCSV(data, filename) {
-        if (!data || data.length === 0) {
-            this.showNotification('No data to export', 'warning');
-            return;
-        }
-        
-        const headers = Object.keys(data[0]);
-        let csv = headers.join(',') + '\n';
-        data.forEach(row => {
-            csv += headers.map(h => `"${row[h] || ''}"`).join(',') + '\n';
-        });
-        
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        
-        this.showNotification(`✅ Exported ${data.length} records to CSV`, 'success');
-    }
-
-    exportToExcel(data, filename) {
-        if (!data || data.length === 0) {
-            this.showNotification('No data to export', 'warning');
-            return;
-        }
-        
-        let html = `<html><head><meta charset="UTF-8"><title>${filename}</title>`;
-        html += `<style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { color: #4F46E5; }
-            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-            th { background: #4F46E5; color: white; padding: 10px; text-align: left; }
-            td { padding: 8px; border: 1px solid #ddd; }
-            tr:nth-child(even) { background: #f9f9f9; }
-            .summary { margin: 20px 0; padding: 15px; background: #f0f4ff; border-radius: 8px; }
-        </style></head><body>`;
-        html += `<h1>📊 Pending Orders Report</h1>`;
-        html += `<div class="summary">
-            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-            <p><strong>Total Records:</strong> ${data.length}</p>
-            <p><strong>Total Pending Quantity:</strong> ${data.reduce((sum, row) => sum + (row.Remaining || 0), 0)}</p>
-        </div>`;
-        html += `<table>`;
-        
-        const headers = Object.keys(data[0]);
-        html += '<thead><tr>';
-        headers.forEach(h => html += `<th>${h}</th>`);
-        html += '</tr></thead><tbody>';
-        
-        data.forEach(row => {
-            html += '<tr>';
-            headers.forEach(h => html += `<td>${row[h] || ''}</td>`);
-            html += '</tr>';
-        });
-        
-        html += '</tbody></table>';
-        html += `<p style="margin-top: 20px; color: #666; font-size: 12px;">Generated by Order Pending Management System</p>`;
-        html += '</body></html>';
-        
-        const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${filename}_${new Date().toISOString().split('T')[0]}.xls`;
-        a.click();
-        URL.revokeObjectURL(url);
-        
-        this.showNotification(`✅ Exported ${data.length} records to Excel`, 'success');
-    }
-
-    exportToPDF(data) {
-        if (!data || data.length === 0) {
-            this.showNotification('No data to export', 'warning');
-            return;
-        }
-        
-        const printWindow = window.open('', '_blank', 'width=800,height=600');
-        let content = '<html><head><title>Pending Orders Report</title>';
-        content += `<style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { color: #4F46E5; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th { background: #4F46E5; color: white; padding: 10px; text-align: left; }
-            td { padding: 8px; border: 1px solid #ddd; }
-            tr:nth-child(even) { background: #f9f9f9; }
-            .summary { margin: 20px 0; padding: 15px; background: #f0f4ff; border-radius: 8px; }
-            @media print { .no-print { display: none; } }
-        </style>`;
-        content += '</head><body>';
-        content += `<h1>📊 Pending Orders Report</h1>`;
-        content += `<div class="summary">
-            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-            <p><strong>Total Records:</strong> ${data.length}</p>
-            <p><strong>Total Pending Quantity:</strong> ${data.reduce((sum, row) => sum + (row.Remaining || 0), 0)}</p>
-        </div>`;
-        content += `<table>`;
-        
-        const headers = Object.keys(data[0]);
-        content += '<thead><tr>';
-        headers.forEach(h => content += `<th>${h}</th>`);
-        content += '</tr></thead><tbody>';
-        
-        data.forEach(row => {
-            content += '<tr>';
-            headers.forEach(h => content += `<td>${row[h] || ''}</td>`);
-            content += '</tr>';
-        });
-        
-        content += '</tbody></table>';
-        content += `<p style="margin-top: 20px; color: #666; font-size: 12px;">Generated by Order Pending Management System</p>`;
-        content += `<button class="no-print" onclick="window.print()" style="margin-top:20px; padding:10px 20px; background:#4F46E5; color:white; border:none; border-radius:4px; cursor:pointer;">🖨️ Print / Save as PDF</button>`;
-        content += '</body></html>';
-        
-        printWindow.document.write(content);
-        printWindow.document.close();
-    }
+    // ============ SKU MISMATCH FEATURES ============
 
     findSKUsNotInOrder() {
         const orderSKUs = new Set(this.data.orders.map(o => o.sku));
@@ -1452,6 +1557,153 @@ class OrderManagementApp {
         this.exportToCSV(data, 'sku_mismatches');
     }
 
+    // ============ EXPORT FEATURES ============
+
+    exportPendingOrders(format = 'csv') {
+        const pendingData = this.data.pending.map(p => ({
+            'SKU': p.sku,
+            'Supplier': p.supplier,
+            'Total Order': p.totalOrder,
+            'Delivered': p.delivered,
+            'Remaining': p.remaining,
+            'Excess': p.excess || 0,
+            'Status': p.status,
+            'Status Note': p.statusNote || '',
+            'Order Date': p.orderDate,
+            'Order Code': p.orderCode
+        }));
+
+        if (format === 'csv') {
+            this.exportToCSV(pendingData, 'pending_orders');
+        } else if (format === 'excel') {
+            this.exportToExcel(pendingData, 'pending_orders');
+        } else if (format === 'pdf') {
+            this.exportToPDF(pendingData);
+        }
+    }
+
+    exportToCSV(data, filename) {
+        if (!data || data.length === 0) {
+            this.showNotification('No data to export', 'warning');
+            return;
+        }
+        
+        const headers = Object.keys(data[0]);
+        let csv = headers.join(',') + '\n';
+        data.forEach(row => {
+            csv += headers.map(h => `"${row[h] || ''}"`).join(',') + '\n';
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        this.showNotification(`✅ Exported ${data.length} records to CSV`, 'success');
+    }
+
+    exportToExcel(data, filename) {
+        if (!data || data.length === 0) {
+            this.showNotification('No data to export', 'warning');
+            return;
+        }
+        
+        let html = `<html><head><meta charset="UTF-8"><title>${filename}</title>`;
+        html += `<style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { color: #4F46E5; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            th { background: #4F46E5; color: white; padding: 10px; text-align: left; }
+            td { padding: 8px; border: 1px solid #ddd; }
+            tr:nth-child(even) { background: #f9f9f9; }
+            .summary { margin: 20px 0; padding: 15px; background: #f0f4ff; border-radius: 8px; }
+        </style></head><body>`;
+        html += `<h1>📊 Pending Orders Report</h1>`;
+        html += `<div class="summary">
+            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>Total Records:</strong> ${data.length}</p>
+            <p><strong>Total Pending Quantity:</strong> ${data.reduce((sum, row) => sum + (row.Remaining || 0), 0)}</p>
+        </div>`;
+        html += `<table>`;
+        
+        const headers = Object.keys(data[0]);
+        html += '<thead><tr>';
+        headers.forEach(h => html += `<th>${h}</th>`);
+        html += '</tr></thead><tbody>';
+        
+        data.forEach(row => {
+            html += '<tr>';
+            headers.forEach(h => html += `<td>${row[h] || ''}</td>`);
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        html += `<p style="margin-top: 20px; color: #666; font-size: 12px;">Generated by Order Pending Management System</p>`;
+        html += '</body></html>';
+        
+        const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filename}_${new Date().toISOString().split('T')[0]}.xls`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        this.showNotification(`✅ Exported ${data.length} records to Excel`, 'success');
+    }
+
+    exportToPDF(data) {
+        if (!data || data.length === 0) {
+            this.showNotification('No data to export', 'warning');
+            return;
+        }
+        
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        let content = '<html><head><title>Pending Orders Report</title>';
+        content += `<style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { color: #4F46E5; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #4F46E5; color: white; padding: 10px; text-align: left; }
+            td { padding: 8px; border: 1px solid #ddd; }
+            tr:nth-child(even) { background: #f9f9f9; }
+            .summary { margin: 20px 0; padding: 15px; background: #f0f4ff; border-radius: 8px; }
+            @media print { .no-print { display: none; } }
+        </style>`;
+        content += '</head><body>';
+        content += `<h1>📊 Pending Orders Report</h1>`;
+        content += `<div class="summary">
+            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>Total Records:</strong> ${data.length}</p>
+            <p><strong>Total Pending Quantity:</strong> ${data.reduce((sum, row) => sum + (row.Remaining || 0), 0)}</p>
+        </div>`;
+        content += `<table>`;
+        
+        const headers = Object.keys(data[0]);
+        content += '<thead><tr>';
+        headers.forEach(h => content += `<th>${h}</th>`);
+        content += '</tr></thead><tbody>';
+        
+        data.forEach(row => {
+            content += '<tr>';
+            headers.forEach(h => content += `<td>${row[h] || ''}</td>`);
+            content += '</tr>';
+        });
+        
+        content += '</tbody></table>';
+        content += `<p style="margin-top: 20px; color: #666; font-size: 12px;">Generated by Order Pending Management System</p>`;
+        content += `<button class="no-print" onclick="window.print()" style="margin-top:20px; padding:10px 20px; background:#4F46E5; color:white; border:none; border-radius:4px; cursor:pointer;">🖨️ Print / Save as PDF</button>`;
+        content += '</body></html>';
+        
+        printWindow.document.write(content);
+        printWindow.document.close();
+    }
+
+    // ============ BOSS EXPORT ============
+
     addBossExport() {
         const analysisContainer = document.getElementById('analysisContent');
         const existingExport = document.querySelector('.boss-export');
@@ -1559,348 +1811,10 @@ class OrderManagementApp {
         this.showNotification(`✅ Exported ${data.length} records for ${supplier}`, 'success');
     }
 
-    // ============ RENDERING METHODS ============
-
-    renderDashboard() {
-        this.updateStats();
-        this.updateActivity(10, 0);
-        this.addMismatchChecker();
-        this.addSignInButton();
-        this.renderSupplierKPIs();
-        this.updateSupplierKPIFilter();
-    }
-
-    updateStats() {
-        const totalQty = this.data.orders.reduce((sum, o) => sum + o.qty, 0);
-        const totalRecords = this.data.orders.length;
-        const totalDeliveries = this.data.deliveries.reduce((sum, d) => sum + d.qty, 0);
-        
-        let fulfilledQty = 0;
-        let excessQty = 0;
-        let pendingQty = 0;
-        let pendingRecords = 0;
-        
-        this.data.pending.forEach(p => {
-            if (p.status === 'completed' || p.status === 'over-delivery') {
-                fulfilledQty += p.totalOrder;
-            } else if (p.status === 'partial') {
-                fulfilledQty += p.delivered;
-                pendingQty += p.remaining;
-                pendingRecords++;
-            } else {
-                pendingQty += p.remaining || p.totalOrder;
-                pendingRecords++;
-            }
-            if (p.status === 'over-delivery') {
-                excessQty += p.excess || 0;
-            }
-        });
-        
-        const fulfillmentRate = totalQty > 0 ? Math.round((fulfilledQty / totalQty) * 100) : 0;
-        const completedCount = this.data.pending.filter(p => p.status === 'completed' || p.status === 'over-delivery').length;
-        
-        document.getElementById('totalOrdersQty').textContent = totalQty.toLocaleString();
-        document.getElementById('totalOrdersRecords').textContent = `(${totalRecords} records)`;
-        document.getElementById('fulfillmentRate').textContent = `${fulfillmentRate}%`;
-        document.getElementById('fulfillmentDetails').textContent = `${fulfilledQty.toLocaleString()} / ${totalQty.toLocaleString()} fulfilled`;
-        document.getElementById('pendingOrdersQty').textContent = pendingQty.toLocaleString();
-        document.getElementById('pendingOrdersRecords').textContent = `(${pendingRecords} records)`;
-        document.getElementById('excessDelivered').textContent = excessQty.toLocaleString();
-        
-        // Also update old stat cards for backward compatibility
-        document.getElementById('totalOrders').textContent = totalRecords;
-        document.getElementById('completedOrders').textContent = completedCount;
-        document.getElementById('pendingOrders').textContent = pendingRecords;
-        document.getElementById('totalDeliveries').textContent = totalDeliveries.toLocaleString();
-    }
-
-    renderSupplierKPIs() {
-        const filter = document.getElementById('kpiSupplierFilter')?.value || '';
-        const grid = document.getElementById('supplierKpiGrid');
-        if (!grid) return;
-        
-        const supplierMap = new Map();
-        this.data.pending.forEach(p => {
-            if (!supplierMap.has(p.supplier)) {
-                supplierMap.set(p.supplier, {
-                    total: 0,
-                    fulfilled: 0,
-                    pending: 0,
-                    excess: 0,
-                    completed: 0,
-                    overDelivery: 0
-                });
-            }
-            const entry = supplierMap.get(p.supplier);
-            entry.total += p.totalOrder;
-            if (p.status === 'completed' || p.status === 'over-delivery') {
-                entry.fulfilled += p.totalOrder;
-                entry.completed++;
-            } else if (p.status === 'partial') {
-                entry.fulfilled += p.delivered;
-                entry.pending += p.remaining;
-            } else {
-                entry.pending += p.remaining || p.totalOrder;
-            }
-            if (p.status === 'over-delivery') {
-                entry.excess += p.excess || 0;
-                entry.overDelivery++;
-            }
-        });
-        
-        let data = Array.from(supplierMap.entries()).map(([name, data]) => ({
-            name,
-            ...data
-        }));
-        
-        if (filter) {
-            data = data.filter(d => d.name === filter);
-        }
-        
-        data.sort((a, b) => b.total - a.total);
-        
-        if (data.length === 0) {
-            grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--gray-500);">No suppliers found</div>`;
-            return;
-        }
-        
-        grid.innerHTML = data.map(supplier => {
-            const fulfillmentRate = supplier.total > 0 ? Math.round((supplier.fulfilled / supplier.total) * 100) : 0;
-            const excessRate = supplier.total > 0 ? Math.round((supplier.excess / supplier.total) * 100) : 0;
-            const barColor = fulfillmentRate >= 100 ? '#10B981' : fulfillmentRate >= 50 ? '#F59E0B' : '#EF4444';
-            
-            return `
-                <div class="supplier-kpi-card" style="border-left-color: ${barColor};">
-                    <div class="supplier-name">${supplier.name}</div>
-                    <div class="kpi-row">
-                        <span class="label">Total Ordered</span>
-                        <span class="value">${supplier.total.toLocaleString()}</span>
-                    </div>
-                    <div class="kpi-row">
-                        <span class="label">Fulfilled</span>
-                        <span class="value success">${supplier.fulfilled.toLocaleString()}</span>
-                    </div>
-                    <div class="kpi-row">
-                        <span class="label">Pending</span>
-                        <span class="value warning">${supplier.pending.toLocaleString()}</span>
-                    </div>
-                    ${supplier.excess > 0 ? `
-                        <div class="kpi-row">
-                            <span class="label">Excess Delivered</span>
-                            <span class="value high">${supplier.excess.toLocaleString()}</span>
-                        </div>
-                    ` : ''}
-                    <div style="margin-top: 8px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--gray-500);">
-                            <span>Fulfillment Rate</span>
-                            <span style="font-weight: 600; color: ${barColor};">${fulfillmentRate}%</span>
-                        </div>
-                        <div class="progress-bar" style="margin-top: 2px;">
-                            <div class="progress-fill" style="width: ${Math.min(fulfillmentRate, 100)}%; background: ${barColor};"></div>
-                        </div>
-                    </div>
-                    ${supplier.overDelivery > 0 ? `
-                        <div style="margin-top: 6px; font-size: 11px; color: #EF4444; background: #FEF2F2; padding: 2px 8px; border-radius: 4px; display: inline-block;">
-                            ⚠️ ${supplier.overDelivery} over-delivery(s)
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-        }).join('');
-    }
-
-    updateSupplierKPIFilter() {
-        const select = document.getElementById('kpiSupplierFilter');
-        if (!select) return;
-        
-        const suppliers = [...new Set(this.data.orders.map(o => o.supplier))];
-        const currentValue = select.value;
-        
-        select.innerHTML = '<option value="">All Suppliers</option>';
-        suppliers.forEach(supplier => {
-            select.innerHTML += `<option value="${supplier}">${supplier}</option>`;
-        });
-        select.value = currentValue;
-    }
-
-    updateActivity(limit = 10, offset = 0) {
-        const activityList = document.getElementById('activityList');
-        const activityCount = document.getElementById('activityCount');
-        const loadMoreBtn = document.getElementById('loadMoreBtn');
-        
-        const activities = [];
-        
-        this.data.orders.forEach(order => {
-            activities.push({
-                type: 'order',
-                message: `Order ${order.orderCode || 'N/A'}: ${order.sku} ×${order.qty} from ${order.supplier}`,
-                date: order.orderDate,
-                timestamp: new Date(order.orderDate).getTime()
-            });
-        });
-        
-        this.data.deliveries.forEach(delivery => {
-            activities.push({
-                type: 'delivery',
-                message: `Delivery: ${delivery.sku} ×${delivery.qty} from ${delivery.supplier} (Box: ${delivery.boxCode || 'N/A'})`,
-                date: delivery.deliveryDate,
-                timestamp: new Date(delivery.deliveryDate).getTime()
-            });
-        });
-        
-        this.data.actual.forEach(actual => {
-            activities.push({
-                type: 'actual',
-                message: `Actual Received: ${actual.sku} ×${actual.qty} from ${actual.supplier}`,
-                date: actual.actualDate,
-                timestamp: new Date(actual.actualDate).getTime()
-            });
-        });
-        
-        activities.sort((a, b) => b.timestamp - a.timestamp);
-        
-        const total = activities.length;
-        const paginated = activities.slice(offset, offset + limit);
-        const hasMore = offset + limit < total;
-        
-        if (activityCount) {
-            activityCount.textContent = `${total} activities`;
-        }
-        
-        if (loadMoreBtn) {
-            loadMoreBtn.style.display = hasMore ? 'inline-block' : 'none';
-            loadMoreBtn.disabled = !hasMore;
-            loadMoreBtn.textContent = hasMore ? `Load More (${Math.min(limit, total - offset - limit)} remaining)` : 'All loaded';
-        }
-        
-        if (paginated.length === 0) {
-            activityList.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--gray-500);">No recent activity</div>`;
-            return;
-        }
-        
-        activityList.innerHTML = paginated.map(activity => `
-            <div class="activity-item">
-                <div class="activity-icon ${activity.type}">
-                    <i class="fas ${activity.type === 'order' ? 'fa-shopping-cart' : activity.type === 'delivery' ? 'fa-truck' : 'fa-check-circle'}"></i>
-                </div>
-                <div class="activity-content">
-                    <p>${activity.message}</p>
-                    <small>${this.formatDate(activity.date)}</small>
-                </div>
-            </div>
-        `).join('');
-        
-        this._activityOffset = offset + limit;
-        this._activities = activities;
-    }
-
-    renderOrders() {
-        const tbody = document.getElementById('ordersBody');
-        tbody.innerHTML = this.data.orders.map(order => `
-            <tr>
-                <td><strong>${order.sku}</strong></td>
-                <td>${order.qty}</td>
-                <td>${order.supplier}</td>
-                <td>${this.formatDate(order.orderDate)}</td>
-                <td>${order.orderCode}</td>
-                <td><span class="status-badge status-pending">Pending</span></td>
-                <td>${order.qty}</td>
-            </tr>
-        `).join('');
-    }
-
-    renderDeliveries() {
-        const tbody = document.getElementById('deliveriesBody');
-        tbody.innerHTML = this.data.deliveries.map(delivery => `
-            <tr>
-                <td><strong>${delivery.sku}</strong></td>
-                <td>${delivery.qty}</td>
-                <td>${delivery.supplier}</td>
-                <td>${this.formatDate(delivery.deliveryDate)}</td>
-                <td>${delivery.boxCode || '-'}</td>
-                <td><span class="status-badge status-partial">In Transit</span></td>
-            </tr>
-        `).join('');
-    }
-
-    renderActual() {
-        const tbody = document.getElementById('actualBody');
-        tbody.innerHTML = this.data.actual.map(actual => `
-            <tr>
-                <td><strong>${actual.sku}</strong></td>
-                <td>${actual.qty}</td>
-                <td>${actual.supplier}</td>
-                <td>${this.formatDate(actual.actualDate)}</td>
-                <td>${actual.boxCode || '-'}</td>
-                <td><span class="status-badge status-completed">Received</span></td>
-            </tr>
-        `).join('');
-    }
-
-    renderPending() {
-        const tbody = document.getElementById('pendingBody');
-        
-        if (this.data.pending.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No pending orders</td></tr>`;
-            return;
-        }
-        
-        tbody.innerHTML = this.data.pending.map(pending => {
-            let fifoBreakdown = '';
-            if (pending.orderStatus && pending.orderStatus.length > 0) {
-                fifoBreakdown = pending.orderStatus.map(os => 
-                    `<div style="font-size: 11px; color: #666;">
-                        ${os.orderDate}: ${os.delivered}/${os.qty} delivered
-                        ${os.remaining > 0 ? `(Remaining: ${os.remaining})` : '✅'}
-                    </div>`
-                ).join('');
-            }
-            
-            const statusMap = {
-                'completed': 'status-completed',
-                'pending': 'status-pending',
-                'partial': 'status-partial',
-                'over-delivery': 'status-over-delivery'
-            };
-            
-            const statusTextMap = {
-                'completed': '✅ Completed',
-                'pending': '⏳ Pending',
-                'partial': '⏳ Partial',
-                'over-delivery': '⚠️ Over-Delivery'
-            };
-            
-            const statusClass = statusMap[pending.status] || 'status-pending';
-            const statusText = statusTextMap[pending.status] || pending.status;
-            const excessDisplay = pending.excess > 0 ? ` (+${pending.excess} excess)` : '';
-            
-            return `
-                <tr>
-                    <td><strong>${pending.sku}</strong></td>
-                    <td>${pending.totalOrder}</td>
-                    <td>${pending.delivered}</td>
-                    <td>${pending.remaining}${excessDisplay}</td>
-                    <td>${pending.supplier}</td>
-                    <td>${this.formatDate(pending.orderDate)}</td>
-                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                </tr>
-                ${fifoBreakdown ? `<tr><td colspan="7" style="padding: 4px 16px; background: #f9fafb;">
-                    <details>
-                        <summary style="cursor: pointer; font-size: 12px; color: #6B7280;">
-                            📋 FIFO Breakdown
-                        </summary>
-                        <div style="margin-top: 4px;">${fifoBreakdown}</div>
-                    </details>
-                </td></tr>` : ''}
-                ${pending.statusNote ? `<tr><td colspan="7" style="padding: 2px 16px 8px 16px; background: #f9fafb;">
-                    <span style="font-size: 12px; color: #DC2626;">${pending.statusNote}</span>
-                </td></tr>` : ''}
-            `;
-        }).join('');
-    }
+    // ============ ANALYSIS ============
 
     renderAnalysis() {
-        const type = document.getElementById('analysisType').value;
+        const type = document.getElementById('analysisType')?.value || 'supplier';
         const container = document.getElementById('analysisContent');
         
         let analysisData = [];
@@ -2032,6 +1946,19 @@ class OrderManagementApp {
         }
         
         container.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <label style="font-weight: 500; font-size: 14px;">View by:</label>
+                    <select id="analysisType" class="filter-select" style="padding: 6px 12px;">
+                        <option value="supplier" ${type === 'supplier' ? 'selected' : ''}>By Supplier</option>
+                        <option value="sku" ${type === 'sku' ? 'selected' : ''}>By SKU</option>
+                        <option value="date" ${type === 'date' ? 'selected' : ''}>By Date</option>
+                    </select>
+                </div>
+                <span style="font-size: 14px; color: var(--gray-500);">
+                    ${analysisData.length} entries
+                </span>
+            </div>
             <div class="analysis-table-wrapper">
                 <table>
                     <thead>
@@ -2082,67 +2009,16 @@ class OrderManagementApp {
                     ` : ''}
                     <li><strong>Pending:</strong> Units still waiting to be delivered</li>
                 </ul>
-                ${analysisData.some(item => item.hasOverDelivery) ? `
-                    <div style="margin-top: 8px; padding: 8px; background: #FEE2E2; border-radius: 4px; font-size: 13px; color: #991B1B;">
-                        <strong>⚠️ Note:</strong> Over-delivery means you received more than ordered. 
-                        The fulfillment rate includes these units, and excess rate shows the overage.
-                    </div>
-                ` : ''}
             </div>
         `;
-    }
-
-    // ============ UTILITY METHODS ============
-
-    switchView(view) {
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.classList.toggle('active', item.dataset.view === view);
-        });
         
-        document.querySelectorAll('.view').forEach(v => {
-            v.classList.toggle('active', v.id === `view-${view}`);
-        });
-        
-        const titles = {
-            dashboard: ['Dashboard', 'Overview of your order management'],
-            orders: ['Orders', 'Manage and track all orders'],
-            deliveries: ['Deliveries', 'Track all deliveries'],
-            actual: ['Actual Received', 'View actual received items'],
-            pending: ['Pending Orders', 'View and manage pending orders'],
-            analysis: ['Analysis', 'Analyze order data and generate reports']
-        };
-        
-        const [title, subtitle] = titles[view] || ['Dashboard', ''];
-        document.getElementById('pageTitle').textContent = title;
-        document.getElementById('pageSubtitle').textContent = subtitle;
-        
-        this.currentView = view;
-        
-        if (view === 'analysis') {
+        // Re-attach event listener for analysis type dropdown
+        document.getElementById('analysisType')?.addEventListener('change', () => {
             this.renderAnalysis();
-            this.addBossExport();
-        }
-        
-        if (window.innerWidth <= 768) {
-            document.getElementById('sidebar').classList.remove('open');
-        }
+        });
     }
 
-    openUploadModal() {
-        document.getElementById('uploadModal').classList.add('active');
-        document.getElementById('orderFiles').value = '';
-        document.getElementById('deliveryFiles').value = '';
-        document.getElementById('actualFiles').value = '';
-    }
-
-    openFilterModal() {
-        document.getElementById('filterModal').classList.add('active');
-        document.getElementById('filterSupplier').value = this.filters.supplier;
-        document.getElementById('filterDateFrom').value = this.filters.dateFrom;
-        document.getElementById('filterDateTo').value = this.filters.dateTo;
-        document.getElementById('filterSKU').value = this.filters.sku;
-        document.getElementById('filterStatus').value = this.filters.status;
-    }
+    // ============ FILTER METHODS ============
 
     applyFilters() {
         this.filters.supplier = document.getElementById('filterSupplier').value;
@@ -2315,8 +2191,178 @@ class OrderManagementApp {
         this.renderDeliveries();
         this.renderActual();
         this.renderPending();
-        this.renderSupplierKPIs();
         this.showNotification('Filters cleared!', 'info');
+    }
+
+    // ============ RENDER METHODS ============
+
+    renderOrders() {
+        const tbody = document.getElementById('ordersBody');
+        if (this.data.orders.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders found</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = this.data.orders.map(order => `
+            <tr>
+                <td><strong>${order.sku}</strong></td>
+                <td>${order.qty}</td>
+                <td>${order.supplier}</td>
+                <td>${this.formatDate(order.orderDate)}</td>
+                <td>${order.orderCode}</td>
+                <td><span class="status-badge status-pending">Pending</span></td>
+                <td>${order.qty}</td>
+            </tr>
+        `).join('');
+    }
+
+    renderDeliveries() {
+        const tbody = document.getElementById('deliveriesBody');
+        if (this.data.deliveries.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries found</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = this.data.deliveries.map(delivery => `
+            <tr>
+                <td><strong>${delivery.sku}</strong></td>
+                <td>${delivery.qty}</td>
+                <td>${delivery.supplier}</td>
+                <td>${this.formatDate(delivery.deliveryDate)}</td>
+                <td>${delivery.boxCode || '-'}</td>
+                <td><span class="status-badge status-partial">In Transit</span></td>
+            </tr>
+        `).join('');
+    }
+
+    renderActual() {
+        const tbody = document.getElementById('actualBody');
+        if (this.data.actual.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items found</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = this.data.actual.map(actual => `
+            <tr>
+                <td><strong>${actual.sku}</strong></td>
+                <td>${actual.qty}</td>
+                <td>${actual.supplier}</td>
+                <td>${this.formatDate(actual.actualDate)}</td>
+                <td>${actual.boxCode || '-'}</td>
+                <td><span class="status-badge status-completed">Received</span></td>
+            </tr>
+        `).join('');
+    }
+
+    renderPending() {
+        const tbody = document.getElementById('pendingBody');
+        
+        if (this.data.pending.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No pending orders</td></tr>`;
+            return;
+        }
+        
+        const statusMap = {
+            'completed': 'status-completed',
+            'pending': 'status-pending',
+            'partial': 'status-partial',
+            'over-delivery': 'status-over-delivery'
+        };
+        
+        const statusTextMap = {
+            'completed': '✅ Completed',
+            'pending': '⏳ Pending',
+            'partial': '⏳ Partial',
+            'over-delivery': '⚠️ Over-Delivery'
+        };
+        
+        tbody.innerHTML = this.data.pending.map(pending => {
+            let fifoBreakdown = '';
+            if (pending.orderStatus && pending.orderStatus.length > 0) {
+                fifoBreakdown = pending.orderStatus.map(os => 
+                    `<div style="font-size: 11px; color: #666;">
+                        ${os.orderDate}: ${os.delivered}/${os.qty} delivered
+                        ${os.remaining > 0 ? `(Remaining: ${os.remaining})` : '✅'}
+                    </div>`
+                ).join('');
+            }
+            
+            const statusClass = statusMap[pending.status] || 'status-pending';
+            const statusText = statusTextMap[pending.status] || pending.status;
+            const excessDisplay = pending.excess > 0 ? ` (+${pending.excess} excess)` : '';
+            
+            return `
+                <tr>
+                    <td><strong>${pending.sku}</strong></td>
+                    <td>${pending.totalOrder}</td>
+                    <td>${pending.delivered}</td>
+                    <td>${pending.remaining}${excessDisplay}</td>
+                    <td>${pending.supplier}</td>
+                    <td>${this.formatDate(pending.orderDate)}</td>
+                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                </tr>
+                ${fifoBreakdown ? `<tr><td colspan="7" style="padding: 4px 16px; background: #f9fafb;">
+                    <details>
+                        <summary style="cursor: pointer; font-size: 12px; color: #6B7280;">
+                            📋 FIFO Breakdown
+                        </summary>
+                        <div style="margin-top: 4px;">${fifoBreakdown}</div>
+                    </details>
+                </td></tr>` : ''}
+                ${pending.statusNote ? `<tr><td colspan="7" style="padding: 2px 16px 8px 16px; background: #f9fafb;">
+                    <span style="font-size: 12px; color: #DC2626;">${pending.statusNote}</span>
+                </td></tr>` : ''}
+            `;
+        }).join('');
+    }
+
+    // ============ UTILITY METHODS ============
+
+    switchView(view) {
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.view === view);
+        });
+        
+        document.querySelectorAll('.view').forEach(v => {
+            v.classList.toggle('active', v.id === `view-${view}`);
+        });
+        
+        const titles = {
+            dashboard: ['Dashboard', 'Overview of your order management'],
+            orders: ['Orders', 'Manage and track all orders'],
+            deliveries: ['Deliveries', 'Track all deliveries'],
+            actual: ['Actual Received', 'View actual received items'],
+            pending: ['Pending Orders', 'View and manage pending orders'],
+            analysis: ['Analysis', 'Analyze order data and generate reports']
+        };
+        
+        const [title, subtitle] = titles[view] || ['Dashboard', ''];
+        document.getElementById('pageTitle').textContent = title;
+        document.getElementById('pageSubtitle').textContent = subtitle;
+        
+        this.currentView = view;
+        
+        if (view === 'analysis') {
+            this.renderAnalysis();
+            this.addBossExport();
+        }
+        
+        if (window.innerWidth <= 768) {
+            document.getElementById('sidebar').classList.remove('open');
+        }
+    }
+
+    openUploadModal() {
+        document.getElementById('uploadModal').classList.add('active');
+        document.getElementById('orderFiles').value = '';
+        document.getElementById('deliveryFiles').value = '';
+        document.getElementById('actualFiles').value = '';
+    }
+
+    openFilterModal() {
+        document.getElementById('filterModal').classList.add('active');
+        document.getElementById('filterSupplier').value = this.filters.supplier;
+        document.getElementById('filterDateFrom').value = this.filters.dateFrom;
+        document.getElementById('filterDateTo').value = this.filters.dateTo;
+        document.getElementById('filterSKU').value = this.filters.sku;
+        document.getElementById('filterStatus').value = this.filters.status;
     }
 
     updateSupplierFilters() {
@@ -2344,6 +2390,10 @@ class OrderManagementApp {
         );
         
         const tbody = document.getElementById('ordersBody');
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders match</td></tr>`;
+            return;
+        }
         tbody.innerHTML = filtered.map(order => `
             <tr>
                 <td><strong>${order.sku}</strong></td>
@@ -2360,6 +2410,10 @@ class OrderManagementApp {
     filterOrdersBySupplier(supplier) {
         const filtered = supplier ? this.data.orders.filter(o => o.supplier === supplier) : this.data.orders;
         const tbody = document.getElementById('ordersBody');
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders for this supplier</td></tr>`;
+            return;
+        }
         tbody.innerHTML = filtered.map(order => `
             <tr>
                 <td><strong>${order.sku}</strong></td>
@@ -2381,6 +2435,10 @@ class OrderManagementApp {
         );
         
         const tbody = document.getElementById('deliveriesBody');
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries match</td></tr>`;
+            return;
+        }
         tbody.innerHTML = filtered.map(delivery => `
             <tr>
                 <td><strong>${delivery.sku}</strong></td>
@@ -2401,6 +2459,10 @@ class OrderManagementApp {
         );
         
         const tbody = document.getElementById('actualBody');
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received match</td></tr>`;
+            return;
+        }
         tbody.innerHTML = filtered.map(actual => `
             <tr>
                 <td><strong>${actual.sku}</strong></td>
@@ -2421,34 +2483,80 @@ class OrderManagementApp {
         );
         
         const tbody = document.getElementById('pendingBody');
-        tbody.innerHTML = filtered.map(pending => `
-            <tr>
-                <td><strong>${pending.sku}</strong></td>
-                <td>${pending.totalOrder}</td>
-                <td>${pending.delivered}</td>
-                <td>${pending.remaining}${pending.excess > 0 ? ` (+${pending.excess} excess)` : ''}</td>
-                <td>${pending.supplier}</td>
-                <td>${this.formatDate(pending.orderDate)}</td>
-                <td><span class="status-badge status-${pending.status}">${pending.status === 'over-delivery' ? '⚠️ Over-Delivery' : pending.status}</span></td>
-            </tr>
-        `).join('');
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No pending orders match</td></tr>`;
+            return;
+        }
+        const statusMap = {
+            'completed': 'status-completed',
+            'pending': 'status-pending',
+            'partial': 'status-partial',
+            'over-delivery': 'status-over-delivery'
+        };
+        const statusTextMap = {
+            'completed': '✅ Completed',
+            'pending': '⏳ Pending',
+            'partial': '⏳ Partial',
+            'over-delivery': '⚠️ Over-Delivery'
+        };
+        
+        tbody.innerHTML = filtered.map(item => {
+            const statusClass = statusMap[item.status] || 'status-pending';
+            const statusText = statusTextMap[item.status] || item.status;
+            const excessDisplay = item.excess > 0 ? ` (+${item.excess} excess)` : '';
+            return `
+                <tr>
+                    <td><strong>${item.sku}</strong></td>
+                    <td>${item.totalOrder}</td>
+                    <td>${item.delivered}</td>
+                    <td>${item.remaining}${excessDisplay}</td>
+                    <td>${item.supplier}</td>
+                    <td>${this.formatDate(item.orderDate)}</td>
+                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                </tr>
+            `;
+        }).join('');
     }
 
     filterPendingBySupplier(supplier) {
         const filtered = supplier ? this.data.pending.filter(p => p.supplier === supplier) : this.data.pending;
         const tbody = document.getElementById('pendingBody');
-        tbody.innerHTML = filtered.map(pending => `
-            <tr>
-                <td><strong>${pending.sku}</strong></td>
-                <td>${pending.totalOrder}</td>
-                <td>${pending.delivered}</td>
-                <td>${pending.remaining}${pending.excess > 0 ? ` (+${pending.excess} excess)` : ''}</td>
-                <td>${pending.supplier}</td>
-                <td>${this.formatDate(pending.orderDate)}</td>
-                <td><span class="status-badge status-${pending.status}">${pending.status === 'over-delivery' ? '⚠️ Over-Delivery' : pending.status}</span></td>
-            </tr>
-        `).join('');
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No pending orders for this supplier</td></tr>`;
+            return;
+        }
+        const statusMap = {
+            'completed': 'status-completed',
+            'pending': 'status-pending',
+            'partial': 'status-partial',
+            'over-delivery': 'status-over-delivery'
+        };
+        const statusTextMap = {
+            'completed': '✅ Completed',
+            'pending': '⏳ Pending',
+            'partial': '⏳ Partial',
+            'over-delivery': '⚠️ Over-Delivery'
+        };
+        
+        tbody.innerHTML = filtered.map(item => {
+            const statusClass = statusMap[item.status] || 'status-pending';
+            const statusText = statusTextMap[item.status] || item.status;
+            const excessDisplay = item.excess > 0 ? ` (+${item.excess} excess)` : '';
+            return `
+                <tr>
+                    <td><strong>${item.sku}</strong></td>
+                    <td>${item.totalOrder}</td>
+                    <td>${item.delivered}</td>
+                    <td>${item.remaining}${excessDisplay}</td>
+                    <td>${item.supplier}</td>
+                    <td>${this.formatDate(item.orderDate)}</td>
+                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                </tr>
+            `;
+        }).join('');
     }
+
+    // ============ UPLOAD METHODS ============
 
     setupDropZones() {
         const dropZones = [
@@ -2464,13 +2572,16 @@ class OrderManagementApp {
             if (!zone || !fileInput) return;
             
             zone.addEventListener('click', () => fileInput.click());
+            
             zone.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 zone.classList.add('dragover');
             });
+            
             zone.addEventListener('dragleave', () => {
                 zone.classList.remove('dragover');
             });
+            
             zone.addEventListener('drop', (e) => {
                 e.preventDefault();
                 zone.classList.remove('dragover');
@@ -2478,6 +2589,7 @@ class OrderManagementApp {
                 fileInput.files = files;
                 this.updateDropZoneText(zone, files.length, type);
             });
+            
             fileInput.addEventListener('change', (e) => {
                 this.updateDropZoneText(zone, e.target.files.length, type);
             });
@@ -2527,8 +2639,10 @@ class OrderManagementApp {
             }
             
             document.getElementById('uploadModal').classList.remove('active');
+            
             await this.loadData();
             this.renderAll();
+            
             this.showNotification(`Successfully uploaded ${uploadCount} files!`, 'success');
             this.showLoading(false);
             
@@ -2541,7 +2655,7 @@ class OrderManagementApp {
 
     async exportData() {
         try {
-            const type = document.getElementById('analysisType').value;
+            const type = document.getElementById('analysisType')?.value || 'supplier';
             const data = this.data.pending;
             
             let csv = 'SKU,Total Order,Delivered,Remaining,Excess,Supplier,Order Date,Status\n';
@@ -2572,8 +2686,6 @@ class OrderManagementApp {
         this.renderPending();
         this.updateSupplierFilters();
         this.addMismatchChecker();
-        this.renderSupplierKPIs();
-        this.updateSupplierKPIFilter();
         if (this.currentView === 'analysis') {
             this.addBossExport();
         }
