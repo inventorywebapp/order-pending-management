@@ -223,22 +223,25 @@ class GoogleDriveManager {
     }
 }
 
-    // Download file content
-    async downloadFile(fileId) {
-        try {
-            await this.authenticate();
-            
-            const response = await gapi.client.drive.files.get({
-                fileId: fileId,
-                alt: 'media',
-            });
-            
-            return response.body;
-        } catch (error) {
-            console.error('Error downloading file:', error);
-            throw error;
-        }
+    // js/gdrive.js - Update downloadFile method
+
+async downloadFile(fileId) {
+    try {
+        await this.authenticate();
+        
+        const response = await gapi.client.drive.files.get({
+            fileId: fileId,
+            alt: 'media',
+        }, {
+            responseType: 'arraybuffer'  // ← IMPORTANT: Get binary data
+        });
+        
+        return response.body;
+    } catch (error) {
+        console.error('Error downloading file:', error);
+        throw error;
     }
+}
 
     // Upload file to Google Drive
     async uploadFile(folderId, file, name = null) {
