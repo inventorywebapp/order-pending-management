@@ -2605,73 +2605,98 @@ class OrderManagementApp {
         });
     }
 
-    filterOrders(searchTerm) {
-        const filtered = this.data.orders.filter(order => 
-            order.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            order.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            order.orderCode.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        
-        if (this._ordersPagination) {
-            this._ordersPagination.updateItems(filtered);
-            this.renderOrders(1);
-        }
-    }
+    // js/app.js - Replace filterOrders method
 
-    filterOrdersBySupplier(supplier) {
-        const filtered = supplier ? this.data.orders.filter(o => o.supplier === supplier) : this.data.orders;
-        if (this._ordersPagination) {
-            this._ordersPagination.updateItems(filtered);
-            this.renderOrders(1);
-        }
+filterOrders(searchTerm) {
+    const filtered = this.data.orders.filter(order => 
+        order.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.orderCode.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    // Reset to page 1 when filtering
+    if (this._ordersPagination) {
+        this._ordersPagination.updateItems(filtered);
+        this._ordersPagination.currentPage = 1;
+        this.renderOrders(1);
     }
+}
 
-    filterDeliveries(searchTerm) {
-        const filtered = this.data.deliveries.filter(delivery => 
-            delivery.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            delivery.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (delivery.boxCode && delivery.boxCode.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-        
-        if (this._deliveriesPagination) {
-            this._deliveriesPagination.updateItems(filtered);
-            this.renderDeliveries(1);
-        }
-    }
+// js/app.js - Replace filterOrdersBySupplier method
 
-    filterActual(searchTerm) {
-        const filtered = this.data.actual.filter(actual => 
-            actual.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            actual.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (actual.boxCode && actual.boxCode.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-        
-        if (this._actualPagination) {
-            this._actualPagination.updateItems(filtered);
-            this.renderActual(1);
-        }
+filterOrdersBySupplier(supplier) {
+    const filtered = supplier ? 
+        this.data.orders.filter(o => o.supplier === supplier) : 
+        this.data.orders;
+    
+    if (this._ordersPagination) {
+        this._ordersPagination.updateItems(filtered);
+        this._ordersPagination.currentPage = 1;
+        this.renderOrders(1);
     }
+}
 
-    filterPending(searchTerm) {
-        const filtered = this.data.pending.filter(pending => 
-            pending.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            pending.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            pending.orderCode.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        
-        if (this._pendingPagination) {
-            this._pendingPagination.updateItems(filtered);
-            this.renderPending(1);
-        }
-    }
+// js/app.js - Replace filterDeliveries method
 
-    filterPendingBySupplier(supplier) {
-        const filtered = supplier ? this.data.pending.filter(p => p.supplier === supplier) : this.data.pending;
-        if (this._pendingPagination) {
-            this._pendingPagination.updateItems(filtered);
-            this.renderPending(1);
-        }
+filterDeliveries(searchTerm) {
+    const filtered = this.data.deliveries.filter(delivery => 
+        delivery.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        delivery.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (delivery.boxCode && delivery.boxCode.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    
+    if (this._deliveriesPagination) {
+        this._deliveriesPagination.updateItems(filtered);
+        this._deliveriesPagination.currentPage = 1;
+        this.renderDeliveries(1);
     }
+}
+
+// js/app.js - Replace filterActual method
+
+filterActual(searchTerm) {
+    const filtered = this.data.actual.filter(actual => 
+        actual.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        actual.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (actual.boxCode && actual.boxCode.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    
+    if (this._actualPagination) {
+        this._actualPagination.updateItems(filtered);
+        this._actualPagination.currentPage = 1;
+        this.renderActual(1);
+    }
+}
+
+// js/app.js - Replace filterPending method
+
+filterPending(searchTerm) {
+    const filtered = this.data.pending.filter(pending => 
+        pending.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pending.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pending.orderCode.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    if (this._pendingPagination) {
+        this._pendingPagination.updateItems(filtered);
+        this._pendingPagination.currentPage = 1;
+        this.renderPending(1);
+    }
+}
+
+// js/app.js - Replace filterPendingBySupplier method
+
+filterPendingBySupplier(supplier) {
+    const filtered = supplier ? 
+        this.data.pending.filter(p => p.supplier === supplier) : 
+        this.data.pending;
+    
+    if (this._pendingPagination) {
+        this._pendingPagination.updateItems(filtered);
+        this._pendingPagination.currentPage = 1;
+        this.renderPending(1);
+    }
+}
 
     // ============ UPLOAD METHODS ============
 
