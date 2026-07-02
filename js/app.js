@@ -1961,17 +1961,239 @@ class OrderManagementApp {
         document.getElementById('filterStatus').value = this.filters.status;
     }
 
-    applyFilters() {
-        this.filters.supplier = document.getElementById('filterSupplier').value;
-        this.filters.dateFrom = document.getElementById('filterDateFrom').value;
-        this.filters.dateTo = document.getElementById('filterDateTo').value;
-        this.filters.sku = document.getElementById('filterSKU').value;
-        this.filters.status = document.getElementById('filterStatus').value;
+    // js/app.js - Replace the applyFilters method
+
+applyFilters() {
+    // Get filter values from modal
+    this.filters.supplier = document.getElementById('filterSupplier').value;
+    this.filters.dateFrom = document.getElementById('filterDateFrom').value;
+    this.filters.dateTo = document.getElementById('filterDateTo').value;
+    this.filters.sku = document.getElementById('filterSKU').value;
+    this.filters.status = document.getElementById('filterStatus').value;
+    
+    document.getElementById('filterModal').classList.remove('active');
+    
+    // Apply filters to all views
+    this.applyFiltersToAllViews();
+    
+    this.showNotification('Filters applied successfully!', 'success');
+}
+
+// Add this new method to apply filters to all views
+applyFiltersToAllViews() {
+    // Filter Orders
+    const filteredOrders = this.data.orders.filter(order => {
+        let match = true;
         
-        document.getElementById('filterModal').classList.remove('active');
-        this.renderAll();
-        this.showNotification('Filters applied successfully!', 'success');
+        if (this.filters.supplier && order.supplier !== this.filters.supplier) {
+            match = false;
+        }
+        if (this.filters.sku && !order.sku.toLowerCase().includes(this.filters.sku.toLowerCase())) {
+            match = false;
+        }
+        if (this.filters.dateFrom && order.orderDate < this.filters.dateFrom) {
+            match = false;
+        }
+        if (this.filters.dateTo && order.orderDate > this.filters.dateTo) {
+            match = false;
+        }
+        
+        return match;
+    });
+    
+    // Filter Deliveries
+    const filteredDeliveries = this.data.deliveries.filter(delivery => {
+        let match = true;
+        
+        if (this.filters.supplier && delivery.supplier !== this.filters.supplier) {
+            match = false;
+        }
+        if (this.filters.sku && !delivery.sku.toLowerCase().includes(this.filters.sku.toLowerCase())) {
+            match = false;
+        }
+        if (this.filters.dateFrom && delivery.deliveryDate < this.filters.dateFrom) {
+            match = false;
+        }
+        if (this.filters.dateTo && delivery.deliveryDate > this.filters.dateTo) {
+            match = false;
+        }
+        
+        return match;
+    });
+    
+    // Filter Actual Received
+    const filteredActual = this.data.actual.filter(actual => {
+        let match = true;
+        
+        if (this.filters.supplier && actual.supplier !== this.filters.supplier) {
+            match = false;
+        }
+        if (this.filters.sku && !actual.sku.toLowerCase().includes(this.filters.sku.toLowerCase())) {
+            match = false;
+        }
+        if (this.filters.dateFrom && actual.actualDate < this.filters.dateFrom) {
+            match = false;
+        }
+        if (this.filters.dateTo && actual.actualDate > this.filters.dateTo) {
+            match = false;
+        }
+        
+        return match;
+    });
+    
+    // Filter Pending Orders
+    const filteredPending = this.data.pending.filter(pending => {
+        let match = true;
+        
+        if (this.filters.supplier && pending.supplier !== this.filters.supplier) {
+            match = false;
+        }
+        if (this.filters.sku && !pending.sku.toLowerCase().includes(this.filters.sku.toLowerCase())) {
+            match = false;
+        }
+        if (this.filters.dateFrom && pending.orderDate < this.filters.dateFrom) {
+            match = false;
+        }
+        if (this.filters.dateTo && pending.orderDate > this.filters.dateTo) {
+            match = false;
+        }
+        if (this.filters.status && pending.status !== this.filters.status) {
+            match = false;
+        }
+        
+        return match;
+    });
+    
+    // Render filtered views
+    this.renderFilteredOrders(filteredOrders);
+    this.renderFilteredDeliveries(filteredDeliveries);
+    this.renderFilteredActual(filteredActual);
+    this.renderFilteredPending(filteredPending);
+}
+
+// Add these helper methods for rendering filtered data
+
+renderFilteredOrders(orders) {
+    const tbody = document.getElementById('ordersBody');
+    if (orders.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders match the filters</td></tr>`;
+        return;
     }
+    tbody.innerHTML = orders.map(order => `
+        <tr>
+            <td><strong>${order.sku}</strong></td>
+            <td>${order.qty}</td>
+            <td>${order.supplier}</td>
+            <td>${this.formatDate(order.orderDate)}</td>
+            <td>${order.orderCode}</td>
+            <td><span class="status-badge status-pending">Pending</span></td>
+            <td>${order.qty}</td>
+        </tr>
+    `).join('');
+}
+
+renderFilteredDeliveries(deliveries) {
+    const tbody = document.getElementById('deliveriesBody');
+    if (deliveries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries match the filters</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = deliveries.map(delivery => `
+        <tr>
+            <td><strong>${delivery.sku}</strong></td>
+            <td>${delivery.qty}</td>
+            <td>${delivery.supplier}</td>
+            <td>${this.formatDate(delivery.deliveryDate)}</td>
+            <td>${delivery.boxCode || '-'}</td>
+            <td><span class="status-badge status-partial">In Transit</span></td>
+        </tr>
+    `).join('');
+}
+
+renderFilteredActual(actual) {
+    const tbody = document.getElementById('actualBody');
+    if (actual.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items match the filters</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = actual.map(item => `
+        <tr>
+            <td><strong>${item.sku}</strong></td>
+            <td>${item.qty}</td>
+            <td>${item.supplier}</td>
+            <td>${this.formatDate(item.actualDate)}</td>
+            <td>${item.boxCode || '-'}</td>
+            <td><span class="status-badge status-completed">Received</span></td>
+        </tr>
+    `).join('');
+}
+
+renderFilteredPending(pending) {
+    const tbody = document.getElementById('pendingBody');
+    if (pending.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No pending orders match the filters</td></tr>`;
+        return;
+    }
+    
+    const statusMap = {
+        'completed': 'status-completed',
+        'pending': 'status-pending',
+        'partial': 'status-partial',
+        'over-delivery': 'status-over-delivery'
+    };
+    
+    const statusTextMap = {
+        'completed': '✅ Completed',
+        'pending': '⏳ Pending',
+        'partial': '⏳ Partial',
+        'over-delivery': '⚠️ Over-Delivery'
+    };
+    
+    tbody.innerHTML = pending.map(item => {
+        const statusClass = statusMap[item.status] || 'status-pending';
+        const statusText = statusTextMap[item.status] || item.status;
+        const excessDisplay = item.excess > 0 ? ` (+${item.excess} excess)` : '';
+        
+        return `
+            <tr>
+                <td><strong>${item.sku}</strong></td>
+                <td>${item.totalOrder}</td>
+                <td>${item.delivered}</td>
+                <td>${item.remaining}${excessDisplay}</td>
+                <td>${item.supplier}</td>
+                <td>${this.formatDate(item.orderDate)}</td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Also update clearFilters method
+clearFilters() {
+    this.filters = {
+        supplier: '',
+        dateFrom: '',
+        dateTo: '',
+        sku: '',
+        status: ''
+    };
+    
+    document.getElementById('filterSupplier').value = '';
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    document.getElementById('filterSKU').value = '';
+    document.getElementById('filterStatus').value = '';
+    
+    document.getElementById('filterModal').classList.remove('active');
+    
+    // Reset all views to show all data
+    this.renderOrders();
+    this.renderDeliveries();
+    this.renderActual();
+    this.renderPending();
+    
+    this.showNotification('Filters cleared!', 'info');
+}
 
     clearFilters() {
         this.filters = {
