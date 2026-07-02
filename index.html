@@ -3,142 +3,359 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Pending Management</title>
-
-    <!-- External Libraries -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
-
-    <!-- Custom CSS -->
-    <link href="css/style.css" rel="stylesheet">
+    <title>Order Pending Management System</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-box">
-            <div class="spinner"></div>
-            <h5 id="loadingTitle">Processing</h5>
-            <p id="loadingMessage" class="text-muted">Loading data...</p>
-            <div class="progress-custom">
-                <div class="progress-bar" id="loadingProgress"></div>
+    <div id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-boxes"></i> OPM</h2>
+                <span class="badge">v2.0</span>
             </div>
-            <small class="text-muted mt-2 d-block" id="loadingDetail">Initializing...</small>
-        </div>
-    </div>
-
-    <div class="container-fluid">
-        <!-- Header -->
-        <header class="main-header">
-            <div class="row align-items-center">
-                <div class="col-md-7">
-                    <h1><i class="bi bi-clipboard-check"></i> Order Pending</h1>
-                    <div class="subtitle">
-                        <i class="bi bi-clock-history"></i> FIFO Tracking: Oldest orders first
-                        <span class="ms-3" id="lastUpdate">Last updated: Never</span>
-                    </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-view="orders">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Orders</span>
+                </a>
+                <a href="#" class="nav-item" data-view="deliveries">
+                    <i class="fas fa-truck"></i>
+                    <span>Deliveries</span>
+                </a>
+                <a href="#" class="nav-item" data-view="actual">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Actual Received</span>
+                </a>
+                <a href="#" class="nav-item" data-view="pending">
+                    <i class="fas fa-clock"></i>
+                    <span>Pending Orders</span>
+                </a>
+                <a href="#" class="nav-item" data-view="analysis">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Analysis</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Admin</span>
                 </div>
-                <div class="col-md-5 text-md-end mt-3 mt-md-0">
-                    <div class="btn-group" role="group">
-                        <button class="btn btn-light btn-action" id="processBtn"><i class="bi bi-play-fill"></i> Process</button>
-                        <button class="btn btn-outline-light btn-action" id="refreshBtn"><i class="bi bi-arrow-clockwise"></i></button>
-                        <button class="btn btn-outline-light btn-action dropdown-toggle" data-bs-toggle="dropdown">
-                            <i class="bi bi-download"></i> Export
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#" onclick="exportData('pending')"><i class="bi bi-clock"></i> Pending</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="exportData('complete')"><i class="bi bi-check-circle"></i> Complete</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="exportData('partial')"><i class="bi bi-exclamation-circle"></i> Partial</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="exportData('discrepancies')"><i class="bi bi-exclamation-triangle"></i> Discrepancies</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="exportData('all')"><i class="bi bi-file-spreadsheet"></i> Full Report</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="exportData('supplier')"><i class="bi bi-building"></i> By Supplier</a></li>
-                        </ul>
-                    </div>
-                    <button class="btn btn-outline-light btn-action ms-2" onclick="showSupplierSelector()">
-                        <i class="bi bi-building"></i> Dashboard
+                <button class="btn-refresh" id="refreshData">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header">
+                <button class="menu-toggle" id="menuToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="header-title">
+                    <h1 id="pageTitle">Dashboard</h1>
+                    <p id="pageSubtitle">Overview of your order management</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-upload" id="uploadBtn">
+                        <i class="fas fa-upload"></i> Upload
+                    </button>
+                    <button class="btn-filter" id="filterBtn">
+                        <i class="fas fa-filter"></i> Filter
                     </button>
                 </div>
+            </header>
+
+            <!-- Dashboard View -->
+            <section id="view-dashboard" class="view active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Total Orders</h3>
+                            <p class="stat-number" id="totalOrders">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Completed</h3>
+                            <p class="stat-number" id="completedOrders">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Pending</h3>
+                            <p class="stat-number" id="pendingOrders">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">
+                            <i class="fas fa-truck"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Total Deliveries</h3>
+                            <p class="stat-number" id="totalDeliveries">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-activity">
+                    <h2>Recent Activity</h2>
+                    <div class="activity-list" id="activityList">
+                        <!-- Dynamic content -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Orders View -->
+            <section id="view-orders" class="view">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>All Orders</h2>
+                        <div class="table-controls">
+                            <input type="text" placeholder="Search orders..." id="orderSearch" class="search-input">
+                            <select id="orderSupplierFilter" class="filter-select">
+                                <option value="">All Suppliers</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="ordersTable">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Qty</th>
+                                    <th>Supplier</th>
+                                    <th>Order Date</th>
+                                    <th>Order Code</th>
+                                    <th>Status</th>
+                                    <th>Remaining</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersBody">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Deliveries View -->
+            <section id="view-deliveries" class="view">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Deliveries</h2>
+                        <div class="table-controls">
+                            <input type="text" placeholder="Search deliveries..." id="deliverySearch" class="search-input">
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="deliveriesTable">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Qty</th>
+                                    <th>Supplier</th>
+                                    <th>Est. Delivery Date</th>
+                                    <th>Box Code</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deliveriesBody">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Actual Received View -->
+            <section id="view-actual" class="view">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Actual Received</h2>
+                        <div class="table-controls">
+                            <input type="text" placeholder="Search actual received..." id="actualSearch" class="search-input">
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="actualTable">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Qty</th>
+                                    <th>Supplier</th>
+                                    <th>Actual Delivery Date</th>
+                                    <th>Box Code</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="actualBody">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Pending Orders View -->
+            <section id="view-pending" class="view">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Pending Orders</h2>
+                        <div class="table-controls">
+                            <input type="text" placeholder="Search pending..." id="pendingSearch" class="search-input">
+                            <select id="pendingSupplierFilter" class="filter-select">
+                                <option value="">All Suppliers</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="pendingTable">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Ordered</th>
+                                    <th>Delivered</th>
+                                    <th>Remaining</th>
+                                    <th>Supplier</th>
+                                    <th>Order Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendingBody">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analysis View -->
+            <section id="view-analysis" class="view">
+                <div class="analysis-container">
+                    <h2>Analysis & Reports</h2>
+                    <div class="analysis-controls">
+                        <select id="analysisType" class="analysis-select">
+                            <option value="supplier">By Supplier</option>
+                            <option value="sku">By SKU</option>
+                            <option value="date">By Date</option>
+                        </select>
+                        <button class="btn-export" id="exportBtn">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
+                    <div id="analysisContent">
+                        <!-- Dynamic analysis content -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Upload Files</h2>
+                <button class="close-modal">&times;</button>
             </div>
-        </header>
-
-        <!-- Status Message -->
-        <div id="statusMessage" class="alert alert-info alert-dismissible fade show" role="alert" style="display:none;">
-            <i class="bi bi-info-circle"></i> <span id="statusText">Ready</span>
-            <button type="button" class="btn-close" onclick="this.closest('.alert').style.display='none'"></button>
-        </div>
-
-        <!-- Stats Cards -->
-        <section class="row g-3 mb-4" id="statsRow">
-            <div class="col-md-2 col-sm-6"><div class="stat-card stat-pending"><i class="bi bi-clock-history stat-icon"></i><p class="stat-number" id="statPending">0</p><p class="stat-label">Pending</p></div></div>
-            <div class="col-md-2 col-sm-6"><div class="stat-card stat-complete"><i class="bi bi-check-circle stat-icon"></i><p class="stat-number" id="statComplete">0</p><p class="stat-label">Complete</p></div></div>
-            <div class="col-md-2 col-sm-6"><div class="stat-card stat-partial"><i class="bi bi-exclamation-circle stat-icon"></i><p class="stat-number" id="statPartial">0</p><p class="stat-label">Partial</p></div></div>
-            <div class="col-md-2 col-sm-6"><div class="stat-card stat-discrepancy"><i class="bi bi-exclamation-triangle stat-icon"></i><p class="stat-number" id="statDiscrepancy">0</p><p class="stat-label">Discrepancies</p></div></div>
-            <div class="col-md-2 col-sm-6"><div class="stat-card stat-supplier"><i class="bi bi-building stat-icon"></i><p class="stat-number" id="statSuppliers">0</p><p class="stat-label">Suppliers</p></div></div>
-            <div class="col-md-2 col-sm-6"><div class="stat-card stat-fifo"><i class="bi bi-sort-numeric-down stat-icon"></i><p class="stat-number" id="statFIFO">✓</p><p class="stat-label">FIFO Active</p></div></div>
-        </section>
-
-        <!-- Filter Section -->
-        <section class="filter-section">
-            <div class="row align-items-end g-2">
-                <div class="col-md-2"><label><i class="bi bi-building"></i> Supplier</label><select id="filterSupplier" class="form-select form-select-sm"><option value="">All</option></select></div>
-                <div class="col-md-2"><label><i class="bi bi-tag"></i> SKU</label><input type="text" id="filterSKU" class="form-control form-control-sm" placeholder="Search SKU..."></div>
-                <div class="col-md-2"><label><i class="bi bi-calendar"></i> From</label><input type="date" id="filterDateFrom" class="form-control form-control-sm"></div>
-                <div class="col-md-2"><label><i class="bi bi-calendar"></i> To</label><input type="date" id="filterDateTo" class="form-control form-control-sm"></div>
-                <div class="col-md-2"><label><i class="bi bi-funnel"></i> Status</label><select id="filterStatus" class="form-select form-select-sm"><option value="">All</option><option value="Complete">Complete</option><option value="Partial">Partial</option><option value="Pending">Pending</option></select></div>
-                <div class="col-md-2"><button class="btn btn-outline-danger btn-sm w-100" id="clearFiltersBtn"><i class="bi bi-x-circle"></i> Clear</button></div>
+            <div class="modal-body">
+                <div class="upload-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Order Files</h3>
+                    <div class="drop-zone" id="orderDropZone">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drop Excel files here or click to browse</p>
+                        <input type="file" multiple accept=".xlsx,.xls" id="orderFiles">
+                    </div>
+                </div>
+                <div class="upload-section">
+                    <h3><i class="fas fa-truck"></i> Delivery Files</h3>
+                    <div class="drop-zone" id="deliveryDropZone">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drop Excel files here or click to browse</p>
+                        <input type="file" multiple accept=".xlsx,.xls" id="deliveryFiles">
+                    </div>
+                </div>
+                <div class="upload-section">
+                    <h3><i class="fas fa-check-circle"></i> Actual Received Files</h3>
+                    <div class="drop-zone" id="actualDropZone">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drop Excel files here or click to browse</p>
+                        <input type="file" multiple accept=".xlsx,.xls" id="actualFiles">
+                    </div>
+                </div>
             </div>
-            <div class="row mt-2"><div class="col-12"><small class="text-muted"><i class="bi bi-info-circle"></i> Showing <span id="filterCount">0</span> | <span id="filterSummary">No filters</span></small></div></div>
-        </section>
-
-        <!-- Tabs -->
-        <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
-            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pending"><i class="bi bi-clock"></i> Pending <span class="badge bg-warning" id="pendingBadge">0</span></button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#complete"><i class="bi bi-check-circle"></i> Complete <span class="badge bg-success" id="completeBadge">0</span></button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#partial"><i class="bi bi-exclamation-circle"></i> Partial <span class="badge bg-warning" id="partialBadge">0</span></button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#deliveries"><i class="bi bi-truck"></i> Deliveries <span class="badge bg-info" id="deliveryBadge">0</span></button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#discrepancies"><i class="bi bi-exclamation-triangle"></i> Discrepancies <span class="badge bg-danger" id="discrepancyBadge">0</span></button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#summary"><i class="bi bi-graph-up"></i> Summary</button></li>
-        </ul>
-
-        <div class="tab-content">
-            <!-- Pending Tab -->
-            <div class="tab-pane fade show active" id="pending"><div class="card"><div class="card-header"><i class="bi bi-clock-history"></i> Pending Orders</div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover" id="pendingTable"><thead><tr><th>SKU</th><th>Supplier</th><th>Order Date</th><th>Order Code</th><th>Ordered</th><th>Delivered</th><th>Pending</th><th>Status</th></tr></thead><tbody id="pendingTableBody"><tr><td colspan="8" class="text-center text-muted">No pending orders</td></tr></tbody></table></div></div></div></div>
-
-            <!-- Complete Tab -->
-            <div class="tab-pane fade" id="complete"><div class="card"><div class="card-header"><i class="bi bi-check-circle"></i> Complete Orders</div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover" id="completeTable"><thead><tr><th>SKU</th><th>Supplier</th><th>Order Date</th><th>Order Code</th><th>Ordered</th><th>Delivered</th></tr></thead><tbody id="completeTableBody"><tr><td colspan="6" class="text-center text-muted">No complete orders</td></tr></tbody></table></div></div></div></div>
-
-            <!-- Partial Tab -->
-            <div class="tab-pane fade" id="partial"><div class="card"><div class="card-header"><i class="bi bi-exclamation-circle"></i> Partial Orders</div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover" id="partialTable"><thead><tr><th>SKU</th><th>Supplier</th><th>Order Date</th><th>Order Code</th><th>Ordered</th><th>Delivered</th><th>Pending</th></tr></thead><tbody id="partialTableBody"><tr><td colspan="7" class="text-center text-muted">No partial orders</td></tr></tbody></table></div></div></div></div>
-
-            <!-- Deliveries Tab -->
-            <div class="tab-pane fade" id="deliveries"><div class="card"><div class="card-header"><i class="bi bi-truck"></i> Deliveries</div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover" id="deliveryTable"><thead><tr><th>SKU</th><th>Supplier</th><th>Box Code</th><th>Qty</th><th>Est. Date</th><th>Status</th></tr></thead><tbody id="deliveryTableBody"><tr><td colspan="6" class="text-center text-muted">No deliveries</td></tr></tbody></table></div></div></div></div>
-
-            <!-- Discrepancies Tab -->
-            <div class="tab-pane fade" id="discrepancies"><div class="card"><div class="card-header bg-danger text-white"><i class="bi bi-exclamation-triangle"></i> Discrepancies</div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover" id="discrepancyTable"><thead><tr><th>SKU</th><th>Supplier</th><th>Box Code</th><th>Delivery</th><th>Actual</th><th>Diff</th><th>Status</th></tr></thead><tbody id="discrepancyTableBody"><tr><td colspan="7" class="text-center text-success">✅ No discrepancies</td></tr></tbody></table></div></div></div></div>
-
-            <!-- Summary Tab -->
-            <div class="tab-pane fade" id="summary"><div class="card"><div class="card-header bg-info text-white"><i class="bi bi-graph-up"></i> Summary</div><div class="card-body" id="summaryContent"><p class="text-muted">Click "Process" to load data.</p></div></div></div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancelUpload">Cancel</button>
+                <button class="btn-primary" id="processUpload">Process Files</button>
+            </div>
         </div>
     </div>
 
-    <!-- Export Modal -->
-    <div class="modal fade" id="exportModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title"><i class="bi bi-download"></i> Export</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="exportModalBody"><p>Preparing...</p></div><div class="modal-footer"><button class="btn btn-success" onclick="downloadExport()"><i class="bi bi-download"></i> CSV</button><button class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
+    <!-- Filter Modal -->
+    <div id="filterModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Filter Data</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="filter-group">
+                    <label>Supplier</label>
+                    <select id="filterSupplier">
+                        <option value="">All Suppliers</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Date Range</label>
+                    <input type="date" id="filterDateFrom">
+                    <input type="date" id="filterDateTo">
+                </div>
+                <div class="filter-group">
+                    <label>SKU</label>
+                    <input type="text" id="filterSKU" placeholder="Search SKU...">
+                </div>
+                <div class="filter-group">
+                    <label>Status</label>
+                    <select id="filterStatus">
+                        <option value="">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="completed">Completed</option>
+                        <option value="partial">Partial</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="clearFilters">Clear All</button>
+                <button class="btn-primary" id="applyFilters">Apply Filters</button>
+            </div>
+        </div>
+    </div>
 
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://apis.google.com/js/api.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loader"></div>
+        <p>Processing data...</p>
+    </div>
 
-    <!-- App Scripts -->
     <script src="js/config.js"></script>
-    <script src="js/google-drive.js"></script>
-    <script src="js/data-processor.js"></script>
-    <script src="js/ui-manager.js"></script>
-    <script src="js/export-manager.js"></script>
+    <script src="js/gdrive.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
