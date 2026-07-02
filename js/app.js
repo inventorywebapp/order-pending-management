@@ -1221,7 +1221,7 @@ processPendingOrders() {
         exportContainer.innerHTML = `
             <h3 style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
                 <i class="fas fa-file-export" style="color: var(--primary);"></i> 
-                Export Reports for Boss
+                Export Reports
             </h3>
             <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
                 <button class="btn-primary" id="exportPendingCSV">
