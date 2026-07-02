@@ -2,7 +2,7 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 
-// Debug: Check environment variables
+// Debug: Check environment variables before build
 console.log('🔍 === ENVIRONMENT VARIABLES DEBUG ===');
 console.log('VITE_GOOGLE_DRIVE_API_KEY exists:', !!process.env.VITE_GOOGLE_DRIVE_API_KEY);
 console.log('VITE_GOOGLE_DRIVE_API_KEY length:', process.env.VITE_GOOGLE_DRIVE_API_KEY?.length || 0);
@@ -11,11 +11,14 @@ console.log('VITE_GOOGLE_DRIVE_CLIENT_ID length:', process.env.VITE_GOOGLE_DRIVE
 console.log('🔍 === END DEBUG ===');
 
 export default defineConfig({
-    base: '/order-pending-management/',
+    base: '/',
     
     define: {
         'import.meta.env.VITE_GOOGLE_DRIVE_API_KEY': JSON.stringify(process.env.VITE_GOOGLE_DRIVE_API_KEY || ''),
         'import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID': JSON.stringify(process.env.VITE_GOOGLE_DRIVE_CLIENT_ID || ''),
+        // Also define as global variables for non-module scripts
+        'window.VITE_GOOGLE_DRIVE_API_KEY': JSON.stringify(process.env.VITE_GOOGLE_DRIVE_API_KEY || ''),
+        'window.VITE_GOOGLE_DRIVE_CLIENT_ID': JSON.stringify(process.env.VITE_GOOGLE_DRIVE_CLIENT_ID || ''),
     },
     
     build: {
@@ -30,6 +33,10 @@ export default defineConfig({
                 manualChunks: {
                     vendor: ['js/config.js', 'js/gdrive.js'],
                 },
+                // Ensure all JS files are properly bundled
+                entryFileNames: 'assets/[name]-[hash].js',
+                chunkFileNames: 'assets/[name]-[hash].js',
+                assetFileNames: 'assets/[name]-[hash].[ext]',
             },
         },
     },
