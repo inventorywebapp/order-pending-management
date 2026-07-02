@@ -117,6 +117,9 @@ if (typeof module !== 'undefined' && module.exports) {
     window.CONFIG = CONFIG;
 }
 
+// ⭐ ADD THIS LINE FOR VITE MODULE EXPORT ⭐
+export { CONFIG, getEnv };
+
 // Freeze the config to prevent accidental modifications
 Object.freeze(CONFIG);
 Object.freeze(CONFIG.GOOGLE_DRIVE);
