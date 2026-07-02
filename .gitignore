@@ -1,38 +1,88 @@
-# Environment variables (CRITICAL - NEVER COMMIT)
+# Environment variables - CRITICAL! NEVER COMMIT THESE!
 .env
+.env.*
 .env.local
 .env.*.local
 *.env
+
+# Build outputs
+dist/
+build/
+.vite/
+*.svelte-kit
 
 # Dependencies
 node_modules/
 package-lock.json
 yarn.lock
+pnpm-lock.yaml
 
-# Build output
-dist/
-build/
-.vite/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+server/uploads/
+*.db
+*.sqlite
+*.sqlite3
 
-# IDE
+# IDE and Editor
 .vscode/
 .idea/
-
-# OS
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # Logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# Backend
-server/uploads/
-*.db
-*.sqlite
-__pycache__/
-*.pyc
-venv/
-env/
+# Testing
+coverage/
+.nyc_output/
+
+# Production
+*.min.js
+*.min.css
+*.bundle.js
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS generated
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Google Drive API credentials (backup safety)
+*_key.json
+*_secret.json
+*.pem
+*.key
+*.crt
+*.csr
