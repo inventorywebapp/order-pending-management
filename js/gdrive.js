@@ -5,7 +5,7 @@ class GoogleDriveManager {
     constructor() {
         this.apiKey = CONFIG?.GOOGLE_DRIVE?.API_KEY || '';
         this.clientId = CONFIG?.GOOGLE_DRIVE?.CLIENT_ID || '';
-        this.scopes = CONFIG?.GOOGLE_DRIVE?.SCOPES || 'https://www.googleapis.com/auth/drive.file';
+        this.scopes = CONFIG?.GOOGLE_DRIVE?.SCOPES || 'https://www.googleapis.com/auth/drive.readonly';
         this.discoveryDocs = CONFIG?.GOOGLE_DRIVE?.DISCOVERY_DOCS || ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
         this.tokenClient = null;
         this.isAuthenticated = false;
@@ -19,7 +19,6 @@ class GoogleDriveManager {
         return new Promise((resolve, reject) => {
             console.log('🔧 Initializing Google Drive...');
             
-            // Check if gapi is loaded
             if (typeof gapi === 'undefined') {
                 console.warn('⚠️ gapi not loaded yet, waiting...');
                 const checkGapi = setInterval(() => {
@@ -36,7 +35,6 @@ class GoogleDriveManager {
                 return;
             }
             
-            // Check if google.accounts is loaded for OAuth
             if (typeof google === 'undefined' || typeof google.accounts === 'undefined') {
                 console.warn('⚠️ google.accounts not loaded yet, waiting...');
                 const checkGoogle = setInterval(() => {
@@ -69,7 +67,6 @@ class GoogleDriveManager {
                     });
                     console.log('✅ gapi client initialized');
                     
-                    // Initialize OAuth
                     if (typeof google !== 'undefined' && google.accounts) {
                         console.log('🔧 Initializing OAuth token client...');
                         try {
@@ -90,28 +87,22 @@ class GoogleDriveManager {
                             });
                             console.log('✅ OAuth token client initialized');
                             
-                            // Check if already authenticated
                             if (gapi.client.getToken()) {
                                 this.isAuthenticated = true;
                                 console.log('✅ Already authenticated');
                                 resolve();
                             } else {
-                                // Try to get token silently
-                                console.log('🔧 Attempting silent authentication...');
                                 try {
                                     this.tokenClient.requestAccessToken({
-                                        prompt: 'none', // Try without user interaction first
+                                        prompt: 'none',
                                     });
-                                    // The callback will handle the rest
                                 } catch (silentError) {
                                     console.warn('⚠️ Silent authentication failed, will prompt user when needed');
-                                    // Continue without auth - will prompt when needed
                                     resolve();
                                 }
                             }
                         } catch (oauthError) {
                             console.error('❌ OAuth initialization error:', oauthError);
-                            // Continue without OAuth - will try again when needed
                             resolve();
                         }
                     } else {
@@ -129,12 +120,10 @@ class GoogleDriveManager {
         }
     }
 
-    // Authenticate user
     authenticate() {
         return new Promise((resolve, reject) => {
             console.log('🔧 Authenticating...');
             
-            // Check if we already have a token
             try {
                 const token = gapi.client.getToken();
                 if (token) {
@@ -155,7 +144,6 @@ class GoogleDriveManager {
             
             if (!this.tokenClient) {
                 console.warn('⚠️ Token client not initialized, re-initializing...');
-                // Try to re-initialize
                 try {
                     if (typeof google !== 'undefined' && google.accounts) {
                         console.log('🔧 Re-initializing token client...');
@@ -188,9 +176,8 @@ class GoogleDriveManager {
             try {
                 console.log('🔧 Requesting access token...');
                 this.tokenClient.requestAccessToken({
-                    prompt: 'consent', // Force consent to ensure we get a token
+                    prompt: 'consent',
                 });
-                // The callback will handle the resolution
             } catch (error) {
                 console.error('❌ Error requesting access token:', error);
                 reject(error);
@@ -198,66 +185,62 @@ class GoogleDriveManager {
         });
     }
 
+    // ✅ FIXED: Download file as ArrayBuffer using fetch
+    async downloadFile(fileId) {
+        try {
+            await this.authenticate();
+            
+            const token = gapi.client.getToken();
+            if (!token) {
+                throw new Error('No auth token available');
+            }
+            
+            const response = await fetch(
+                `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token.access_token}`,
+                    },
+                }
+            );
+            
+            if (!response.ok) {
+                throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+            }
+            
+            const arrayBuffer = await response.arrayBuffer();
+            console.log(`📥 Downloaded file ${fileId}, size: ${arrayBuffer.byteLength} bytes`);
+            return arrayBuffer;
+            
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            throw error;
+        }
+    }
+
     // List files in a folder
     async listFiles(folderId) {
-    console.log('🔧 Listing files in folder:', folderId);
-    try {
-        await this.authenticate();
-        console.log('✅ Authenticated, listing files...');
-        
-        const response = await gapi.client.drive.files.list({
-            q: `'${folderId}' in parents and trashed=false`,
-            fields: 'files(id, name, mimeType, modifiedTime, createdTime, parents)',
-            orderBy: 'modifiedTime desc',
-            supportsAllDrives: true,  // ← ADD THIS
-            includeItemsFromAllDrives: true,  // ← ADD THIS
-        });
-        
-        console.log(`✅ Found ${response.result.files.length} files in folder`);
-        // Log file names for debugging
-        response.result.files.forEach(f => console.log(`   📄 ${f.name} (${f.mimeType})`));
-        return response.result.files;
-    } catch (error) {
-        console.error('❌ Error listing files:', error);
-        throw error;
-    }
-}
-
-    // js/gdrive.js - Replace the downloadFile method
-
-async downloadFile(fileId) {
-    try {
-        await this.authenticate();
-        
-        // Use fetch with the Drive API to get binary data
-        const token = gapi.client.getToken();
-        if (!token) {
-            throw new Error('No auth token available');
+        console.log('🔧 Listing files in folder:', folderId);
+        try {
+            await this.authenticate();
+            console.log('✅ Authenticated, listing files...');
+            
+            const response = await gapi.client.drive.files.list({
+                q: `'${folderId}' in parents and trashed=false`,
+                fields: 'files(id, name, mimeType, modifiedTime, createdTime, parents)',
+                orderBy: 'modifiedTime desc',
+                supportsAllDrives: true,
+                includeItemsFromAllDrives: true,
+            });
+            
+            console.log(`✅ Found ${response.result.files.length} files in folder`);
+            response.result.files.forEach(f => console.log(`   📄 ${f.name} (${f.mimeType})`));
+            return response.result.files;
+        } catch (error) {
+            console.error('❌ Error listing files:', error);
+            throw error;
         }
-        
-        const response = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${token.access_token}`,
-                },
-            }
-        );
-        
-        if (!response.ok) {
-            throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-        }
-        
-        // Get the data as ArrayBuffer
-        const arrayBuffer = await response.arrayBuffer();
-        console.log(`📥 Downloaded file ${fileId}, size: ${arrayBuffer.byteLength} bytes`);
-        return arrayBuffer;
-        
-    } catch (error) {
-        console.error('Error downloading file:', error);
-        throw error;
     }
-}
 
     // Upload file to Google Drive
     async uploadFile(folderId, file, name = null) {
@@ -318,10 +301,8 @@ async downloadFile(fileId) {
 // Create and expose the driveManager instance
 const driveManager = new GoogleDriveManager();
 
-// Make it available globally for non-module scripts
 if (typeof window !== 'undefined') {
     window.driveManager = driveManager;
 }
 
-// Export for module usage
 export { driveManager, GoogleDriveManager };
