@@ -354,7 +354,18 @@
         <p>Processing data...</p>
     </div>
 
+    <!-- Load scripts in correct order -->
+    <!-- 1. Load environment variables first -->
+    <script type="module" src="js/env-loader.js"></script>
+    
+    <!-- 2. Load configuration -->
     <script src="js/config.js"></script>
+    
+    <!-- 3. Load Google Drive API -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
+    
+    <!-- 4. Load application -->
     <script src="js/gdrive.js"></script>
     <script src="js/app.js"></script>
 </body>
