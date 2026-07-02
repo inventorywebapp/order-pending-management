@@ -676,62 +676,114 @@ findValue(row, possibleKeys) {
         return mockData;
     }
 
-    processPendingOrders() {
-        const pending = [];
-        const orderMap = new Map();
-        const deliveryMap = new Map();
+    // js/app.js - Replace processPendingOrders with FIFO version
+
+processPendingOrders() {
+    console.log('📊 Processing pending orders with FIFO...');
+    
+    // Group orders by SKU and supplier, but keep individual orders
+    const orderGroups = new Map();
+    
+    // Sort orders by date (oldest first)
+    const sortedOrders = [...this.data.orders].sort((a, b) => 
+        new Date(a.orderDate) - new Date(b.orderDate)
+    );
+    
+    // Group orders by SKU and supplier
+    sortedOrders.forEach(order => {
+        const key = `${order.sku}-${order.supplier}`;
+        if (!orderGroups.has(key)) {
+            orderGroups.set(key, {
+                sku: order.sku,
+                supplier: order.supplier,
+                orders: [],
+                totalOrder: 0
+            });
+        }
+        const group = orderGroups.get(key);
+        group.orders.push({ ...order, remaining: order.qty });
+        group.totalOrder += order.qty;
+    });
+    
+    // Aggregate deliveries by SKU and supplier
+    const deliveryMap = new Map();
+    this.data.deliveries.forEach(delivery => {
+        const key = `${delivery.sku}-${delivery.supplier}`;
+        if (!deliveryMap.has(key)) {
+            deliveryMap.set(key, 0);
+        }
+        deliveryMap.set(key, deliveryMap.get(key) + delivery.qty);
+    });
+    
+    // Process each group with FIFO
+    const pending = [];
+    
+    orderGroups.forEach((group, key) => {
+        let totalDelivered = deliveryMap.get(key) || 0;
+        let remainingToDeliver = totalDelivered;
         
-        // Aggregate orders by SKU and supplier
-        this.data.orders.forEach(order => {
-            const key = `${order.sku}-${order.supplier}`;
-            if (!orderMap.has(key)) {
-                orderMap.set(key, {
-                    sku: order.sku,
-                    supplier: order.supplier,
-                    totalOrder: 0,
-                    delivered: 0,
-                    orders: []
-                });
-            }
-            const entry = orderMap.get(key);
-            entry.totalOrder += order.qty;
-            entry.orders.push(order);
-        });
+        console.log(`📦 Processing ${group.sku} (${group.supplier}): ${group.totalOrder} ordered, ${totalDelivered} delivered`);
         
-        // Aggregate deliveries by SKU and supplier
-        this.data.deliveries.forEach(delivery => {
-            const key = `${delivery.sku}-${delivery.supplier}`;
-            if (!deliveryMap.has(key)) {
-                deliveryMap.set(key, 0);
-            }
-            deliveryMap.set(key, deliveryMap.get(key) + delivery.qty);
-        });
+        // Track which orders got delivered
+        const orderStatus = [];
+        let deliveredCount = 0;
         
-        // Calculate pending
-        orderMap.forEach((value, key) => {
-            const delivered = deliveryMap.get(key) || 0;
-            const remaining = value.totalOrder - delivered;
+        // FIFO: Deduct from oldest orders first
+        for (const order of group.orders) {
+            let orderRemaining = order.qty;
             
-            if (remaining > 0 || delivered > 0) {
-                pending.push({
-                    sku: value.sku,
-                    supplier: value.supplier,
-                    totalOrder: value.totalOrder,
-                    delivered: delivered,
-                    remaining: Math.max(0, remaining),
-                    status: remaining === 0 ? 'completed' : delivered > 0 ? 'partial' : 'pending',
-                    orderDate: value.orders[0]?.orderDate || new Date().toISOString().split('T')[0],
-                    orderCode: value.orders[0]?.orderCode || '',
-                    note: ''
+            if (remainingToDeliver > 0) {
+                const deducted = Math.min(orderRemaining, remainingToDeliver);
+                orderRemaining -= deducted;
+                remainingToDeliver -= deducted;
+                deliveredCount += deducted;
+                
+                orderStatus.push({
+                    orderCode: order.orderCode || '',
+                    orderDate: order.orderDate,
+                    qty: order.qty,
+                    delivered: deducted,
+                    remaining: orderRemaining,
+                    status: orderRemaining === 0 ? 'completed' : 'partial'
+                });
+            } else {
+                orderStatus.push({
+                    orderCode: order.orderCode || '',
+                    orderDate: order.orderDate,
+                    qty: order.qty,
+                    delivered: 0,
+                    remaining: order.qty,
+                    status: 'pending'
                 });
             }
-        });
+        }
         
-        // Sort pending orders by date (oldest first)
-        pending.sort((a, b) => new Date(a.orderDate) - new Date(b.orderDate));
+        const remaining = group.totalOrder - totalDelivered;
         
-        this.data.pending = pending;
-    }
+        // Only show if there's activity (some delivered or pending)
+        if (totalDelivered > 0 || remaining > 0) {
+            pending.push({
+                sku: group.sku,
+                supplier: group.supplier,
+                totalOrder: group.totalOrder,
+                delivered: totalDelivered,
+                remaining: Math.max(0, remaining),
+                status: remaining === 0 ? 'completed' : totalDelivered > 0 ? 'partial' : 'pending',
+                orderDate: group.orders[0]?.orderDate || new Date().toISOString().split('T')[0],
+                orderCode: group.orders[0]?.orderCode || '',
+                note: '',
+                // FIFO details for detailed view
+                orderStatus: orderStatus
+            });
+        }
+    });
+    
+    // Sort pending orders by date (oldest first)
+    pending.sort((a, b) => new Date(a.orderDate) - new Date(b.orderDate));
+    
+    this.data.pending = pending;
+    console.log(`✅ Processed ${pending.length} pending groups with FIFO`);
+}
 
     // ============ NEW FEATURES ============
 
