@@ -5,12 +5,15 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+# Force Node.js 20 to avoid compatibility issues
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow one concurrent deployment
 concurrency:
   group: "pages"
   cancel-in-progress: true
@@ -25,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'  # Explicitly use Node.js 20
 
       - name: Create environment file from secrets
         run: |
