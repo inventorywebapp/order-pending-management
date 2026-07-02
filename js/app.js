@@ -516,20 +516,18 @@ parseCSVLineAdvanced(line) {
 
 // In js/app.js - Replace the mapExcelRow method
 
+// js/app.js - Replace the mapExcelRow method
+
 mapExcelRow(row, type) {
     try {
-        // Debug: Log the row to see what we're getting
-        // console.log(`📝 Mapping ${type} row:`, row);
-        
         if (type === 'order') {
-            // Try different possible column names (case insensitive)
-            const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item', 'Product', 'product']);
+            // Get values with proper date conversion
+            const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
             const qty = parseFloat(this.findValue(row, ['Order Qty', 'order_qty', 'Qty', 'qty', 'Quantity', 'quantity']) || 0);
             const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
-            const orderDate = this.findValue(row, ['Order Date', 'order_date', 'Date', 'date']);
+            const orderDate = this.convertExcelDate(this.findValue(row, ['Order Date', 'order_date', 'Date', 'date']));
             const orderCode = this.findValue(row, ['Order Code', 'order_code', 'Code', 'code']);
             
-            // Skip empty rows
             if (!sku || qty === 0) return null;
             
             return {
@@ -543,7 +541,7 @@ mapExcelRow(row, type) {
             const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
             const qty = parseFloat(this.findValue(row, ['Delivery Qty', 'delivery_qty', 'Qty', 'qty']) || 0);
             const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
-            const deliveryDate = this.findValue(row, ['Est. Delivery Date', 'est_delivery_date', 'Delivery Date', 'delivery_date', 'Date', 'date']);
+            const deliveryDate = this.convertExcelDate(this.findValue(row, ['Est. Delivery Date', 'est_delivery_date', 'Delivery Date', 'delivery_date', 'Date', 'date']));
             const boxCode = this.findValue(row, ['Box Code', 'box_code', 'Box', 'box']);
             
             if (!sku || qty === 0) return null;
@@ -559,7 +557,7 @@ mapExcelRow(row, type) {
             const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
             const qty = parseFloat(this.findValue(row, ['Delivery Qty', 'delivery_qty', 'Qty', 'qty']) || 0);
             const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
-            const actualDate = this.findValue(row, ['Act. Delivery Date', 'act_delivery_date', 'Actual Date', 'actual_date', 'Date', 'date']);
+            const actualDate = this.convertExcelDate(this.findValue(row, ['Act. Delivery Date', 'act_delivery_date', 'Actual Date', 'actual_date', 'Date', 'date']));
             const boxCode = this.findValue(row, ['Box Code', 'box_code', 'Box', 'box']);
             
             if (!sku || qty === 0) return null;
@@ -577,6 +575,64 @@ mapExcelRow(row, type) {
         return null;
     }
     return null;
+}
+
+// ✅ ADD THIS NEW METHOD: Convert Excel date serial numbers to proper date string
+convertExcelDate(value) {
+    if (!value) return '';
+    
+    // If it's already a string like "3/1/2026", return it as-is
+    if (typeof value === 'string') {
+        // Check if it's a date string
+        const dateRegex = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
+        if (dateRegex.test(value)) {
+            // Try to parse and format it consistently
+            try {
+                const parts = value.split('/');
+                const month = parseInt(parts[0]);
+                const day = parseInt(parts[1]);
+                const year = parseInt(parts[2]) > 2000 ? parseInt(parts[2]) : 2000 + parseInt(parts[2]);
+                const date = new Date(year, month - 1, day);
+                return date.toISOString().split('T')[0];
+            } catch (e) {
+                return value;
+            }
+        }
+        return value;
+    }
+    
+    // If it's a number (Excel serial date)
+    if (typeof value === 'number') {
+        // Excel serial date: 1 = Jan 1, 1900
+        // Subtract 1 because Excel incorrectly treats 1900 as a leap year
+        const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+        const date = new Date(excelEpoch.getTime() + (value * 24 * 60 * 60 * 1000));
+        
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+            return '';
+        }
+        
+        // Return as YYYY-MM-DD
+        return date.toISOString().split('T')[0];
+    }
+    
+    // If it's a Date object
+    if (value instanceof Date) {
+        return value.toISOString().split('T')[0];
+    }
+    
+    return value || '';
+}
+
+// Helper method to find value by multiple possible keys (already exists, keep it)
+findValue(row, possibleKeys) {
+    for (const key of possibleKeys) {
+        if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
+            return row[key];
+        }
+    }
+    return '';
 }
 
 // Helper method to find value by multiple possible keys
