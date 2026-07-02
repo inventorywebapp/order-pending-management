@@ -1789,126 +1789,207 @@ class OrderManagementApp {
         }).join('');
     }
 
-    renderAnalysis() {
-        const type = document.getElementById('analysisType').value;
-        const container = document.getElementById('analysisContent');
-        
-        let analysisData = [];
-        
-        if (type === 'supplier') {
-            const supplierMap = new Map();
-            this.data.pending.forEach(p => {
-                if (!supplierMap.has(p.supplier)) {
-                    supplierMap.set(p.supplier, { total: 0, pending: 0, completed: 0, overDelivery: 0 });
-                }
-                const entry = supplierMap.get(p.supplier);
-                entry.total += p.totalOrder;
-                if (p.status === 'completed') {
-                    entry.completed += p.totalOrder;
-                } else if (p.status === 'over-delivery') {
-                    entry.overDelivery += p.excess || 0;
-                } else {
-                    entry.pending += p.remaining;
-                }
-            });
+    // js/app.js - Replace the entire renderAnalysis method
+
+renderAnalysis() {
+    const type = document.getElementById('analysisType').value;
+    const container = document.getElementById('analysisContent');
+    
+    let analysisData = [];
+    
+    if (type === 'supplier') {
+        const supplierMap = new Map();
+        this.data.pending.forEach(p => {
+            if (!supplierMap.has(p.supplier)) {
+                supplierMap.set(p.supplier, { 
+                    total: 0, 
+                    pending: 0, 
+                    completed: 0, 
+                    overDelivery: 0,
+                    fulfilled: 0
+                });
+            }
+            const entry = supplierMap.get(p.supplier);
+            entry.total += p.totalOrder;
             
-            analysisData = Array.from(supplierMap.entries()).map(([supplier, data]) => ({
-                name: supplier,
-                total: data.total,
-                pending: data.pending,
-                completed: data.completed,
-                overDelivery: data.overDelivery,
-                completionRate: data.total > 0 ? (data.completed / data.total * 100).toFixed(1) : 0
-            }));
-        } else if (type === 'sku') {
-            const skuMap = new Map();
-            this.data.pending.forEach(p => {
-                if (!skuMap.has(p.sku)) {
-                    skuMap.set(p.sku, { total: 0, pending: 0, completed: 0, overDelivery: 0 });
-                }
-                const entry = skuMap.get(p.sku);
-                entry.total += p.totalOrder;
-                if (p.status === 'completed') {
-                    entry.completed += p.totalOrder;
-                } else if (p.status === 'over-delivery') {
-                    entry.overDelivery += p.excess || 0;
-                } else {
-                    entry.pending += p.remaining;
-                }
-            });
-            
-            analysisData = Array.from(skuMap.entries()).map(([sku, data]) => ({
-                name: sku,
-                total: data.total,
-                pending: data.pending,
-                completed: data.completed,
-                overDelivery: data.overDelivery,
-                completionRate: data.total > 0 ? (data.completed / data.total * 100).toFixed(1) : 0
-            }));
-        } else {
-            const dateMap = new Map();
-            this.data.pending.forEach(p => {
-                const date = p.orderDate.split('T')[0];
-                if (!dateMap.has(date)) {
-                    dateMap.set(date, { total: 0, pending: 0, completed: 0, overDelivery: 0 });
-                }
-                const entry = dateMap.get(date);
-                entry.total += p.totalOrder;
-                if (p.status === 'completed') {
-                    entry.completed += p.totalOrder;
-                } else if (p.status === 'over-delivery') {
-                    entry.overDelivery += p.excess || 0;
-                } else {
-                    entry.pending += p.remaining;
-                }
-            });
-            
-            analysisData = Array.from(dateMap.entries()).map(([date, data]) => ({
-                name: date,
-                total: data.total,
-                pending: data.pending,
-                completed: data.completed,
-                overDelivery: data.overDelivery,
-                completionRate: data.total > 0 ? (data.completed / data.total * 100).toFixed(1) : 0
-            }));
-        }
+            if (p.status === 'completed') {
+                // ✅ Completed: count as fulfilled
+                entry.completed += p.totalOrder;
+                entry.fulfilled += p.totalOrder;
+            } else if (p.status === 'over-delivery') {
+                // ✅ Over-Delivery: count the order as fulfilled, track excess separately
+                entry.overDelivery += p.excess || 0;
+                entry.fulfilled += p.totalOrder;  // The order is fulfilled
+                entry.completed += p.totalOrder;  // Also count as completed
+            } else if (p.status === 'partial') {
+                // ✅ Partial: delivered portion is fulfilled, remaining is pending
+                entry.fulfilled += p.delivered;
+                entry.pending += p.remaining;
+            } else {
+                // ✅ Pending: nothing fulfilled
+                entry.pending += p.remaining || p.totalOrder;
+            }
+        });
         
-        container.innerHTML = `
-            <div class="analysis-table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>${type === 'date' ? 'Date' : type === 'supplier' ? 'Supplier' : 'SKU'}</th>
-                            <th>Total</th>
-                            <th>Completed</th>
-                            <th>Pending</th>
-                            <th>Over-Delivery</th>
-                            <th>Completion Rate</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${analysisData.map(item => `
-                            <tr>
-                                <td><strong>${item.name}</strong></td>
-                                <td>${item.total}</td>
-                                <td>${item.completed}</td>
-                                <td>${item.pending}</td>
-                                <td style="color: ${item.overDelivery > 0 ? '#EF4444' : '#6B7280'};">
-                                    ${item.overDelivery > 0 ? `⚠️ ${item.overDelivery}` : '0'}
-                                </td>
-                                <td>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" style="width: ${item.completionRate}%"></div>
-                                        <span>${item.completionRate}%</span>
-                                    </div>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
+        analysisData = Array.from(supplierMap.entries()).map(([supplier, data]) => ({
+            name: supplier,
+            total: data.total,
+            pending: data.pending,
+            completed: data.completed,
+            overDelivery: data.overDelivery,
+            fulfilled: data.fulfilled,
+            // ✅ Fulfillment rate: what % of ordered items were delivered (including over-delivery)
+            fulfillmentRate: data.total > 0 ? (data.fulfilled / data.total * 100).toFixed(1) : 0,
+            // ✅ Excess rate: what % of ordered items were extra
+            excessRate: data.total > 0 ? (data.overDelivery / data.total * 100).toFixed(1) : 0,
+            hasOverDelivery: data.overDelivery > 0
+        }));
+    } else if (type === 'sku') {
+        const skuMap = new Map();
+        this.data.pending.forEach(p => {
+            if (!skuMap.has(p.sku)) {
+                skuMap.set(p.sku, { 
+                    total: 0, 
+                    pending: 0, 
+                    completed: 0, 
+                    overDelivery: 0,
+                    fulfilled: 0
+                });
+            }
+            const entry = skuMap.get(p.sku);
+            entry.total += p.totalOrder;
+            
+            if (p.status === 'completed') {
+                entry.completed += p.totalOrder;
+                entry.fulfilled += p.totalOrder;
+            } else if (p.status === 'over-delivery') {
+                entry.overDelivery += p.excess || 0;
+                entry.fulfilled += p.totalOrder;
+                entry.completed += p.totalOrder;
+            } else if (p.status === 'partial') {
+                entry.fulfilled += p.delivered;
+                entry.pending += p.remaining;
+            } else {
+                entry.pending += p.remaining || p.totalOrder;
+            }
+        });
+        
+        analysisData = Array.from(skuMap.entries()).map(([sku, data]) => ({
+            name: sku,
+            total: data.total,
+            pending: data.pending,
+            completed: data.completed,
+            overDelivery: data.overDelivery,
+            fulfilled: data.fulfilled,
+            fulfillmentRate: data.total > 0 ? (data.fulfilled / data.total * 100).toFixed(1) : 0,
+            excessRate: data.total > 0 ? (data.overDelivery / data.total * 100).toFixed(1) : 0,
+            hasOverDelivery: data.overDelivery > 0
+        }));
+    } else {
+        const dateMap = new Map();
+        this.data.pending.forEach(p => {
+            const date = p.orderDate.split('T')[0];
+            if (!dateMap.has(date)) {
+                dateMap.set(date, { 
+                    total: 0, 
+                    pending: 0, 
+                    completed: 0, 
+                    overDelivery: 0,
+                    fulfilled: 0
+                });
+            }
+            const entry = dateMap.get(date);
+            entry.total += p.totalOrder;
+            
+            if (p.status === 'completed') {
+                entry.completed += p.totalOrder;
+                entry.fulfilled += p.totalOrder;
+            } else if (p.status === 'over-delivery') {
+                entry.overDelivery += p.excess || 0;
+                entry.fulfilled += p.totalOrder;
+                entry.completed += p.totalOrder;
+            } else if (p.status === 'partial') {
+                entry.fulfilled += p.delivered;
+                entry.pending += p.remaining;
+            } else {
+                entry.pending += p.remaining || p.totalOrder;
+            }
+        });
+        
+        analysisData = Array.from(dateMap.entries()).map(([date, data]) => ({
+            name: date,
+            total: data.total,
+            pending: data.pending,
+            completed: data.completed,
+            overDelivery: data.overDelivery,
+            fulfilled: data.fulfilled,
+            fulfillmentRate: data.total > 0 ? (data.fulfilled / data.total * 100).toFixed(1) : 0,
+            excessRate: data.total > 0 ? (data.overDelivery / data.total * 100).toFixed(1) : 0,
+            hasOverDelivery: data.overDelivery > 0
+        }));
     }
+    
+    // Render analysis with accurate metrics
+    container.innerHTML = `
+        <div class="analysis-table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>${type === 'date' ? 'Date' : type === 'supplier' ? 'Supplier' : 'SKU'}</th>
+                        <th>Total Ordered</th>
+                        <th>Fulfilled</th>
+                        <th>Pending</th>
+                        <th>Excess Delivered</th>
+                        <th>Fulfillment Rate</th>
+                        <th>Excess Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${analysisData.map(item => `
+                        <tr>
+                            <td><strong>${item.name}</strong></td>
+                            <td>${item.total}</td>
+                            <td>${item.fulfilled}</td>
+                            <td>${item.pending}</td>
+                            <td style="color: ${item.overDelivery > 0 ? '#EF4444' : '#6B7280'}; font-weight: ${item.overDelivery > 0 ? '600' : 'normal'};">
+                                ${item.overDelivery > 0 ? `⚠️ ${item.overDelivery}` : '0'}
+                            </td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${item.fulfillmentRate}%; background: ${item.fulfillmentRate >= 100 ? '#10B981' : item.fulfillmentRate >= 50 ? '#F59E0B' : '#EF4444'};"></div>
+                                    <span>${item.fulfillmentRate}%</span>
+                                </div>
+                            </td>
+                            <td style="color: ${item.excessRate > 0 ? '#EF4444' : '#6B7280'};">
+                                ${item.excessRate > 0 ? `${item.excessRate}%` : '0%'}
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top: 16px; padding: 16px; background: ${analysisData.some(item => item.hasOverDelivery) ? '#FEF2F2' : '#ECFDF5'}; border-radius: 8px; border-left: 4px solid ${analysisData.some(item => item.hasOverDelivery) ? '#EF4444' : '#10B981'};">
+            <p style="margin: 0; font-size: 14px; color: ${analysisData.some(item => item.hasOverDelivery) ? '#991B1B' : '#065F46'};">
+                <strong>📊 Understanding the Metrics:</strong>
+            </p>
+            <ul style="margin: 8px 0 0 20px; font-size: 13px; color: ${analysisData.some(item => item.hasOverDelivery) ? '#991B1B' : '#065F46'};">
+                <li><strong>Fulfilled:</strong> Units delivered (including over-delivery)</li>
+                <li><strong>Fulfillment Rate:</strong> Percentage of ordered units that were delivered</li>
+                ${analysisData.some(item => item.hasOverDelivery) ? `
+                    <li><strong>Excess Delivered:</strong> Units delivered beyond what was ordered</li>
+                    <li><strong>Excess Rate:</strong> Percentage of ordered units delivered in excess</li>
+                ` : ''}
+                <li><strong>Pending:</strong> Units still waiting to be delivered</li>
+            </ul>
+            ${analysisData.some(item => item.hasOverDelivery) ? `
+                <div style="margin-top: 8px; padding: 8px; background: #FEE2E2; border-radius: 4px; font-size: 13px; color: #991B1B;">
+                    <strong>⚠️ Note:</strong> Over-delivery means you received more than ordered. 
+                    The fulfillment rate includes these units, and excess rate shows the overage.
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
 
     // Utility methods
     switchView(view) {
