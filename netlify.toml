@@ -3,24 +3,5 @@
   command = "npm run build"
   publish = "dist"
 
-# Ensure environment variables are passed to the build
 [build.environment]
   NODE_VERSION = "18"
-
-# Production context
-[context.production]
-  command = "npm run build"
-  publish = "dist"
-
-[context.production.environment]
-  VITE_GOOGLE_DRIVE_API_KEY = "${VITE_GOOGLE_DRIVE_API_KEY}"
-  VITE_GOOGLE_DRIVE_CLIENT_ID = "${VITE_GOOGLE_DRIVE_CLIENT_ID}"
-
-# Deploy preview context
-[context.deploy-preview]
-  command = "npm run build"
-  publish = "dist"
-
-[context.deploy-preview.environment]
-  VITE_GOOGLE_DRIVE_API_KEY = "${VITE_GOOGLE_DRIVE_API_KEY}"
-  VITE_GOOGLE_DRIVE_CLIENT_ID = "${VITE_GOOGLE_DRIVE_CLIENT_ID}"
