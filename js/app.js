@@ -673,6 +673,7 @@ class OrderManagementApp {
         return mockData;
     }
 
+    // Updated processPendingOrders with Over-Delivery Status
     processPendingOrders() {
         console.log('📊 Processing pending orders with FIFO...');
         
@@ -754,20 +755,37 @@ class OrderManagementApp {
             }
             
             const remaining = group.totalOrder - totalDelivered;
+            const excess = totalDelivered > group.totalOrder ? totalDelivered - group.totalOrder : 0;
             
-            // Only show if there's activity (some delivered or pending)
-            if (totalDelivered > 0 || remaining > 0) {
+            // Determine status with over-delivery support
+            let status = 'pending';
+            let statusNote = '';
+            
+            if (excess > 0) {
+                status = 'over-delivery';
+                statusNote = `⚠️ Over-Delivery: ${excess} units excess`;
+            } else if (remaining === 0 && totalDelivered > 0) {
+                status = 'completed';
+            } else if (totalDelivered > 0 && remaining > 0) {
+                status = 'partial';
+            } else {
+                status = 'pending';
+            }
+            
+            // Only show if there's activity (some delivered or pending or over-delivery)
+            if (totalDelivered > 0 || remaining > 0 || excess > 0) {
                 pending.push({
                     sku: group.sku,
                     supplier: group.supplier,
                     totalOrder: group.totalOrder,
                     delivered: totalDelivered,
                     remaining: Math.max(0, remaining),
-                    status: remaining === 0 ? 'completed' : totalDelivered > 0 ? 'partial' : 'pending',
+                    excess: excess,
+                    status: status,
+                    statusNote: statusNote,
                     orderDate: group.orders[0]?.orderDate || new Date().toISOString().split('T')[0],
                     orderCode: group.orders[0]?.orderCode || '',
-                    note: '',
-                    // FIFO details for detailed view
+                    note: statusNote,
                     orderStatus: orderStatus
                 });
             }
@@ -1092,10 +1110,11 @@ class OrderManagementApp {
             'Total Order': p.totalOrder,
             'Delivered': p.delivered,
             'Remaining': p.remaining,
+            'Excess': p.excess || 0,
             'Status': p.status,
+            'Status Note': p.statusNote || '',
             'Order Date': p.orderDate,
-            'Order Code': p.orderCode,
-            'Note': p.note || ''
+            'Order Code': p.orderCode
         }));
 
         if (format === 'csv') {
@@ -1593,6 +1612,7 @@ class OrderManagementApp {
             'Total Order': p.totalOrder,
             'Delivered': p.delivered,
             'Remaining': p.remaining,
+            'Excess': p.excess || 0,
             'Status': p.status,
             'Order Date': p.orderDate,
             'Order Code': p.orderCode
@@ -1617,11 +1637,12 @@ class OrderManagementApp {
         const totalDeliveries = this.data.deliveries.reduce((sum, d) => sum + d.qty, 0);
         const completed = this.data.pending.filter(p => p.status === 'completed').length;
         const pending = this.data.pending.filter(p => p.status === 'pending' || p.status === 'partial').length;
+        const overDelivery = this.data.pending.filter(p => p.status === 'over-delivery').length;
         
         document.getElementById('totalOrders').textContent = totalOrders;
         document.getElementById('totalDeliveries').textContent = totalDeliveries;
-        document.getElementById('completedOrders').textContent = this.data.pending.filter(p => p.status === 'completed').length;
-        document.getElementById('pendingOrders').textContent = pending;
+        document.getElementById('completedOrders').textContent = completed;
+        document.getElementById('pendingOrders').textContent = pending + overDelivery;
     }
 
     updateActivity() {
@@ -1722,15 +1743,36 @@ class OrderManagementApp {
                 ).join('');
             }
             
+            // Status badge mapping with over-delivery
+            const statusMap = {
+                'completed': 'status-completed',
+                'pending': 'status-pending',
+                'partial': 'status-partial',
+                'over-delivery': 'status-over-delivery'
+            };
+            
+            const statusTextMap = {
+                'completed': '✅ Completed',
+                'pending': '⏳ Pending',
+                'partial': '⏳ Partial',
+                'over-delivery': '⚠️ Over-Delivery'
+            };
+            
+            const statusClass = statusMap[pending.status] || 'status-pending';
+            const statusText = statusTextMap[pending.status] || pending.status;
+            
+            // Show excess if over-delivery
+            const excessDisplay = pending.excess > 0 ? ` (+${pending.excess} excess)` : '';
+            
             return `
                 <tr>
                     <td><strong>${pending.sku}</strong></td>
                     <td>${pending.totalOrder}</td>
                     <td>${pending.delivered}</td>
-                    <td>${pending.remaining}</td>
+                    <td>${pending.remaining}${excessDisplay}</td>
                     <td>${pending.supplier}</td>
                     <td>${this.formatDate(pending.orderDate)}</td>
-                    <td><span class="status-badge status-${pending.status}">${pending.status}</span></td>
+                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                 </tr>
                 ${fifoBreakdown ? `<tr><td colspan="7" style="padding: 4px 16px; background: #f9fafb;">
                     <details>
@@ -1739,6 +1781,9 @@ class OrderManagementApp {
                         </summary>
                         <div style="margin-top: 4px;">${fifoBreakdown}</div>
                     </details>
+                </td></tr>` : ''}
+                ${pending.statusNote ? `<tr><td colspan="7" style="padding: 2px 16px 8px 16px; background: #f9fafb;">
+                    <span style="font-size: 12px; color: #DC2626;">${pending.statusNote}</span>
                 </td></tr>` : ''}
             `;
         }).join('');
@@ -1754,12 +1799,14 @@ class OrderManagementApp {
             const supplierMap = new Map();
             this.data.pending.forEach(p => {
                 if (!supplierMap.has(p.supplier)) {
-                    supplierMap.set(p.supplier, { total: 0, pending: 0, completed: 0 });
+                    supplierMap.set(p.supplier, { total: 0, pending: 0, completed: 0, overDelivery: 0 });
                 }
                 const entry = supplierMap.get(p.supplier);
                 entry.total += p.totalOrder;
                 if (p.status === 'completed') {
                     entry.completed += p.totalOrder;
+                } else if (p.status === 'over-delivery') {
+                    entry.overDelivery += p.excess || 0;
                 } else {
                     entry.pending += p.remaining;
                 }
@@ -1770,18 +1817,21 @@ class OrderManagementApp {
                 total: data.total,
                 pending: data.pending,
                 completed: data.completed,
+                overDelivery: data.overDelivery,
                 completionRate: data.total > 0 ? (data.completed / data.total * 100).toFixed(1) : 0
             }));
         } else if (type === 'sku') {
             const skuMap = new Map();
             this.data.pending.forEach(p => {
                 if (!skuMap.has(p.sku)) {
-                    skuMap.set(p.sku, { total: 0, pending: 0, completed: 0 });
+                    skuMap.set(p.sku, { total: 0, pending: 0, completed: 0, overDelivery: 0 });
                 }
                 const entry = skuMap.get(p.sku);
                 entry.total += p.totalOrder;
                 if (p.status === 'completed') {
                     entry.completed += p.totalOrder;
+                } else if (p.status === 'over-delivery') {
+                    entry.overDelivery += p.excess || 0;
                 } else {
                     entry.pending += p.remaining;
                 }
@@ -1792,6 +1842,7 @@ class OrderManagementApp {
                 total: data.total,
                 pending: data.pending,
                 completed: data.completed,
+                overDelivery: data.overDelivery,
                 completionRate: data.total > 0 ? (data.completed / data.total * 100).toFixed(1) : 0
             }));
         } else {
@@ -1799,12 +1850,14 @@ class OrderManagementApp {
             this.data.pending.forEach(p => {
                 const date = p.orderDate.split('T')[0];
                 if (!dateMap.has(date)) {
-                    dateMap.set(date, { total: 0, pending: 0, completed: 0 });
+                    dateMap.set(date, { total: 0, pending: 0, completed: 0, overDelivery: 0 });
                 }
                 const entry = dateMap.get(date);
                 entry.total += p.totalOrder;
                 if (p.status === 'completed') {
                     entry.completed += p.totalOrder;
+                } else if (p.status === 'over-delivery') {
+                    entry.overDelivery += p.excess || 0;
                 } else {
                     entry.pending += p.remaining;
                 }
@@ -1815,6 +1868,7 @@ class OrderManagementApp {
                 total: data.total,
                 pending: data.pending,
                 completed: data.completed,
+                overDelivery: data.overDelivery,
                 completionRate: data.total > 0 ? (data.completed / data.total * 100).toFixed(1) : 0
             }));
         }
@@ -1828,6 +1882,7 @@ class OrderManagementApp {
                             <th>Total</th>
                             <th>Completed</th>
                             <th>Pending</th>
+                            <th>Over-Delivery</th>
                             <th>Completion Rate</th>
                         </tr>
                     </thead>
@@ -1838,6 +1893,9 @@ class OrderManagementApp {
                                 <td>${item.total}</td>
                                 <td>${item.completed}</td>
                                 <td>${item.pending}</td>
+                                <td style="color: ${item.overDelivery > 0 ? '#EF4444' : '#6B7280'};">
+                                    ${item.overDelivery > 0 ? `⚠️ ${item.overDelivery}` : '0'}
+                                </td>
                                 <td>
                                     <div class="progress-bar">
                                         <div class="progress-fill" style="width: ${item.completionRate}%"></div>
@@ -2045,10 +2103,10 @@ class OrderManagementApp {
                 <td><strong>${pending.sku}</strong></td>
                 <td>${pending.totalOrder}</td>
                 <td>${pending.delivered}</td>
-                <td>${pending.remaining}</td>
+                <td>${pending.remaining}${pending.excess > 0 ? ` (+${pending.excess} excess)` : ''}</td>
                 <td>${pending.supplier}</td>
                 <td>${this.formatDate(pending.orderDate)}</td>
-                <td><span class="status-badge status-${pending.status}">${pending.status}</span></td>
+                <td><span class="status-badge status-${pending.status}">${pending.status === 'over-delivery' ? '⚠️ Over-Delivery' : pending.status}</span></td>
             </tr>
         `).join('');
     }
@@ -2064,10 +2122,10 @@ class OrderManagementApp {
                 <td><strong>${pending.sku}</strong></td>
                 <td>${pending.totalOrder}</td>
                 <td>${pending.delivered}</td>
-                <td>${pending.remaining}</td>
+                <td>${pending.remaining}${pending.excess > 0 ? ` (+${pending.excess} excess)` : ''}</td>
                 <td>${pending.supplier}</td>
                 <td>${this.formatDate(pending.orderDate)}</td>
-                <td><span class="status-badge status-${pending.status}">${pending.status}</span></td>
+                <td><span class="status-badge status-${pending.status}">${pending.status === 'over-delivery' ? '⚠️ Over-Delivery' : pending.status}</span></td>
             </tr>
         `).join('');
     }
@@ -2172,9 +2230,9 @@ class OrderManagementApp {
             const type = document.getElementById('analysisType').value;
             const data = this.data.pending;
             
-            let csv = 'SKU,Total Order,Delivered,Remaining,Supplier,Order Date,Status\n';
+            let csv = 'SKU,Total Order,Delivered,Remaining,Excess,Supplier,Order Date,Status\n';
             data.forEach(p => {
-                csv += `${p.sku},${p.totalOrder},${p.delivered},${p.remaining},${p.supplier},${p.orderDate},${p.status}\n`;
+                csv += `${p.sku},${p.totalOrder},${p.delivered},${p.remaining},${p.excess || 0},${p.supplier},${p.orderDate},${p.status}\n`;
             });
             
             const blob = new Blob([csv], { type: 'text/csv' });
