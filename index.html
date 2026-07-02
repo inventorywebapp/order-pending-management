@@ -354,19 +354,15 @@
         <p>Processing data...</p>
     </div>
 
-    <!-- Script Loading Order (CRITICAL) -->
-    <!-- 1. Load environment variables first -->
-    <script type="module" src="js/env-loader.js"></script>
-    
-    <!-- 2. Load configuration -->
-    <script src="js/config.js"></script>
-    
-    <!-- 3. Load Google Drive API -->
+    <!-- Script Loading Order - Optimized for Vite and Netlify -->
+    <!-- 1. Load Google Drive API first (external) -->
     <script src="https://apis.google.com/js/api.js"></script>
     <script src="https://accounts.google.com/gsi/client"></script>
-    
-    <!-- 4. Load application -->
-    <script src="js/gdrive.js"></script>
-    <script src="js/app.js"></script>
+
+    <!-- 2. Load configuration and environment (using module for Vite compatibility) -->
+    <script type="module" src="js/config.js"></script>
+    <script type="module" src="js/env-loader.js"></script>
+    <script type="module" src="js/gdrive.js"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>
