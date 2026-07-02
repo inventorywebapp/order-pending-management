@@ -74,53 +74,85 @@
             </header>
 
             <!-- Dashboard View -->
-            <section id="view-dashboard" class="view active">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon blue">
-                            <i class="fas fa-shopping-cart"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Total Orders</h3>
-                            <p class="stat-number" id="totalOrders">0</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon green">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Completed</h3>
-                            <p class="stat-number" id="completedOrders">0</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon orange">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Pending</h3>
-                            <p class="stat-number" id="pendingOrders">0</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon purple">
-                            <i class="fas fa-truck"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Total Deliveries</h3>
-                            <p class="stat-number" id="totalDeliveries">0</p>
-                        </div>
-                    </div>
-                </div>
+<section id="view-dashboard" class="view active">
+    <!-- KPI Summary Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon blue">
+                <i class="fas fa-shopping-cart"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Total Order Quantity</h3>
+                <p class="stat-number" id="totalOrdersQty">0</p>
+                <small style="color: var(--gray-500);" id="totalOrdersRecords">(0 records)</small>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Fulfillment Rate</h3>
+                <p class="stat-number" id="fulfillmentRate">0%</p>
+                <small style="color: var(--gray-500);" id="fulfillmentDetails">0 / 0 fulfilled</small>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Pending Quantity</h3>
+                <p class="stat-number" id="pendingOrdersQty">0</p>
+                <small style="color: var(--gray-500);" id="pendingOrdersRecords">(0 records)</small>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon purple">
+                <i class="fas fa-truck"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Excess Delivered</h3>
+                <p class="stat-number" id="excessDelivered">0</p>
+                <small style="color: var(--gray-500);">Units over ordered</small>
+            </div>
+        </div>
+    </div>
 
-                <div class="recent-activity">
-                    <h2>Recent Activity</h2>
-                    <div class="activity-list" id="activityList">
-                        <!-- Dynamic content -->
-                    </div>
-                </div>
-            </section>
+    <!-- Supplier KPIs Section -->
+    <div class="supplier-kpi-section" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 style="font-size: 18px; font-weight: 600;">Supplier KPIs</h2>
+            <select id="kpiSupplierFilter" class="filter-select" style="padding: 6px 12px; font-size: 13px;">
+                <option value="">All Suppliers</option>
+            </select>
+        </div>
+        <div id="supplierKpiGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+            <!-- Dynamic supplier cards -->
+        </div>
+    </div>
+
+    <!-- Mismatch Checker -->
+    <div id="mismatchCheckerContainer">
+        <!-- Dynamically rendered -->
+    </div>
+
+    <!-- Recent Activity with Load More -->
+    <div class="recent-activity">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 style="font-size: 18px; font-weight: 600;">Recent Activity</h2>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="font-size: 13px; color: var(--gray-500);" id="activityCount">0 activities</span>
+                <button id="loadMoreBtn" class="btn-secondary" style="padding: 4px 12px; font-size: 12px;">
+                    Load More
+                </button>
+            </div>
+        </div>
+        <div class="activity-list" id="activityList">
+            <!-- Dynamic content -->
+        </div>
+    </div>
+</section>
 
             <!-- Orders View -->
             <section id="view-orders" class="view">
