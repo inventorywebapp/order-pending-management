@@ -379,6 +379,61 @@ class OrderManagementApp {
         this.setupDropZones();
     }
 
+    // ============ UPDATE SUPPLIER FILTERS ============
+
+    updateSupplierFilters() {
+        const suppliers = [...new Set(this.data.orders.map(o => o.supplier))];
+        const selects = ['orderSupplierFilter', 'pendingSupplierFilter', 'filterSupplier', 'supplierExportSelect'];
+        
+        selects.forEach(id => {
+            const select = document.getElementById(id);
+            if (select) {
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">All Suppliers</option>';
+                suppliers.forEach(supplier => {
+                    select.innerHTML += `<option value="${supplier}">${supplier}</option>`;
+                });
+                select.value = currentValue;
+            }
+        });
+    }
+
+    // ============ SWITCH VIEW ============
+
+    switchView(view) {
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.view === view);
+        });
+        
+        document.querySelectorAll('.view').forEach(v => {
+            v.classList.toggle('active', v.id === `view-${view}`);
+        });
+        
+        const titles = {
+            dashboard: ['Dashboard', 'Overview of your order management'],
+            orders: ['Orders', 'Manage and track all orders'],
+            deliveries: ['Deliveries', 'Track all deliveries'],
+            actual: ['Actual Received', 'View actual received items'],
+            pending: ['Pending Orders', 'View and manage pending orders'],
+            analysis: ['Analysis', 'Analyze order data and generate reports']
+        };
+        
+        const [title, subtitle] = titles[view] || ['Dashboard', ''];
+        document.getElementById('pageTitle').textContent = title;
+        document.getElementById('pageSubtitle').textContent = subtitle;
+        
+        this.currentView = view;
+        
+        if (view === 'analysis') {
+            this.renderAnalysis();
+            this.addBossExport();
+        }
+        
+        if (window.innerWidth <= 768) {
+            document.getElementById('sidebar').classList.remove('open');
+        }
+    }
+
     // ============ LOAD DATA ============
 
     async loadData() {
