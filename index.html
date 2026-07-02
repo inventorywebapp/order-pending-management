@@ -74,85 +74,85 @@
             </header>
 
             <!-- Dashboard View -->
-<section id="view-dashboard" class="view active">
-    <!-- KPI Summary Cards -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon blue">
-                <i class="fas fa-shopping-cart"></i>
-            </div>
-            <div class="stat-info">
-                <h3>Total Order Quantity</h3>
-                <p class="stat-number" id="totalOrdersQty">0</p>
-                <small style="color: var(--gray-500);" id="totalOrdersRecords">(0 records)</small>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon green">
-                <i class="fas fa-check-circle"></i>
-            </div>
-            <div class="stat-info">
-                <h3>Fulfillment Rate</h3>
-                <p class="stat-number" id="fulfillmentRate">0%</p>
-                <small style="color: var(--gray-500);" id="fulfillmentDetails">0 / 0 fulfilled</small>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon orange">
-                <i class="fas fa-clock"></i>
-            </div>
-            <div class="stat-info">
-                <h3>Pending Quantity</h3>
-                <p class="stat-number" id="pendingOrdersQty">0</p>
-                <small style="color: var(--gray-500);" id="pendingOrdersRecords">(0 records)</small>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon purple">
-                <i class="fas fa-truck"></i>
-            </div>
-            <div class="stat-info">
-                <h3>Excess Delivered</h3>
-                <p class="stat-number" id="excessDelivered">0</p>
-                <small style="color: var(--gray-500);">Units over ordered</small>
-            </div>
-        </div>
-    </div>
+            <section id="view-dashboard" class="view active">
+                <!-- KPI Summary Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Total Order Quantity</h3>
+                            <p class="stat-number" id="totalOrdersQty">0</p>
+                            <small style="color: var(--gray-500);" id="totalOrdersRecords">(0 records)</small>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Fulfillment Rate</h3>
+                            <p class="stat-number" id="fulfillmentRate">0%</p>
+                            <small style="color: var(--gray-500);" id="fulfillmentDetails">0 / 0 fulfilled</small>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Pending Quantity</h3>
+                            <p class="stat-number" id="pendingOrdersQty">0</p>
+                            <small style="color: var(--gray-500);" id="pendingOrdersRecords">(0 records)</small>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">
+                            <i class="fas fa-truck"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Excess Delivered</h3>
+                            <p class="stat-number" id="excessDelivered">0</p>
+                            <small style="color: var(--gray-500);">Units over ordered</small>
+                        </div>
+                    </div>
+                </div>
 
-    <!-- Supplier KPIs Section -->
-    <div class="supplier-kpi-section" style="margin-bottom: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h2 style="font-size: 18px; font-weight: 600;">Supplier KPIs</h2>
-            <select id="kpiSupplierFilter" class="filter-select" style="padding: 6px 12px; font-size: 13px;">
-                <option value="">All Suppliers</option>
-            </select>
-        </div>
-        <div id="supplierKpiGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
-            <!-- Dynamic supplier cards -->
-        </div>
-    </div>
+                <!-- Supplier KPIs Section -->
+                <div class="supplier-kpi-section" style="margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h2 style="font-size: 18px; font-weight: 600;">Supplier KPIs</h2>
+                        <select id="kpiSupplierFilter" class="filter-select" style="padding: 6px 12px; font-size: 13px;">
+                            <option value="">All Suppliers</option>
+                        </select>
+                    </div>
+                    <div id="supplierKpiGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+                        <!-- Dynamic supplier cards -->
+                    </div>
+                </div>
 
-    <!-- Mismatch Checker -->
-    <div id="mismatchCheckerContainer">
-        <!-- Dynamically rendered -->
-    </div>
+                <!-- Mismatch Checker -->
+                <div id="mismatchCheckerContainer">
+                    <!-- Dynamically rendered -->
+                </div>
 
-    <!-- Recent Activity with Load More -->
-    <div class="recent-activity">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h2 style="font-size: 18px; font-weight: 600;">Recent Activity</h2>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <span style="font-size: 13px; color: var(--gray-500);" id="activityCount">0 activities</span>
-                <button id="loadMoreBtn" class="btn-secondary" style="padding: 4px 12px; font-size: 12px;">
-                    Load More
-                </button>
-            </div>
-        </div>
-        <div class="activity-list" id="activityList">
-            <!-- Dynamic content -->
-        </div>
-    </div>
-</section>
+                <!-- Recent Activity with Load More -->
+                <div class="recent-activity">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h2 style="font-size: 18px; font-weight: 600;">Recent Activity</h2>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span style="font-size: 13px; color: var(--gray-500);" id="activityCount">0 activities</span>
+                            <button id="loadMoreBtn" class="btn-secondary" style="padding: 4px 12px; font-size: 12px;">
+                                Load More
+                            </button>
+                        </div>
+                    </div>
+                    <div class="activity-list" id="activityList">
+                        <!-- Dynamic content -->
+                    </div>
+                </div>
+            </section>
 
             <!-- Orders View -->
             <section id="view-orders" class="view">
@@ -176,13 +176,27 @@
                                     <th>Order Date</th>
                                     <th>Order Code</th>
                                     <th>Status</th>
-                                    <!--<th>Remaining</th>-->
                                 </tr>
                             </thead>
                             <tbody id="ordersBody">
                                 <!-- Dynamic content -->
                             </tbody>
                         </table>
+                    </div>
+                    <!-- Orders Pagination -->
+                    <div class="pagination-controls" id="ordersPagination">
+                        <div class="pagination-info">
+                            Showing <span id="ordersStart">0</span> - <span id="ordersEnd">0</span> of <span id="ordersTotal">0</span> orders
+                        </div>
+                        <div class="pagination-buttons">
+                            <button class="btn-secondary pagination-btn" id="ordersPrev" disabled>
+                                <i class="fas fa-chevron-left"></i> Prev
+                            </button>
+                            <span id="ordersPageInfo">Page 1 of 1</span>
+                            <button class="btn-secondary pagination-btn" id="ordersNext">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -205,13 +219,27 @@
                                     <th>Supplier</th>
                                     <th>Est. Delivery Date</th>
                                     <th>Box Code</th>
-                                    <!--<th>Status</th>-->
                                 </tr>
                             </thead>
                             <tbody id="deliveriesBody">
                                 <!-- Dynamic content -->
                             </tbody>
                         </table>
+                    </div>
+                    <!-- Deliveries Pagination -->
+                    <div class="pagination-controls" id="deliveriesPagination">
+                        <div class="pagination-info">
+                            Showing <span id="deliveriesStart">0</span> - <span id="deliveriesEnd">0</span> of <span id="deliveriesTotal">0</span> deliveries
+                        </div>
+                        <div class="pagination-buttons">
+                            <button class="btn-secondary pagination-btn" id="deliveriesPrev" disabled>
+                                <i class="fas fa-chevron-left"></i> Prev
+                            </button>
+                            <span id="deliveriesPageInfo">Page 1 of 1</span>
+                            <button class="btn-secondary pagination-btn" id="deliveriesNext">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -234,13 +262,27 @@
                                     <th>Supplier</th>
                                     <th>Actual Delivery Date</th>
                                     <th>Box Code</th>
-                                    <!--<th>Status</th>-->
                                 </tr>
                             </thead>
                             <tbody id="actualBody">
                                 <!-- Dynamic content -->
                             </tbody>
                         </table>
+                    </div>
+                    <!-- Actual Received Pagination -->
+                    <div class="pagination-controls" id="actualPagination">
+                        <div class="pagination-info">
+                            Showing <span id="actualStart">0</span> - <span id="actualEnd">0</span> of <span id="actualTotal">0</span> actual received
+                        </div>
+                        <div class="pagination-buttons">
+                            <button class="btn-secondary pagination-btn" id="actualPrev" disabled>
+                                <i class="fas fa-chevron-left"></i> Prev
+                            </button>
+                            <span id="actualPageInfo">Page 1 of 1</span>
+                            <button class="btn-secondary pagination-btn" id="actualNext">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -274,6 +316,21 @@
                                 <!-- Dynamic content -->
                             </tbody>
                         </table>
+                    </div>
+                    <!-- Pending Orders Pagination -->
+                    <div class="pagination-controls" id="pendingPagination">
+                        <div class="pagination-info">
+                            Showing <span id="pendingStart">0</span> - <span id="pendingEnd">0</span> of <span id="pendingTotal">0</span> pending orders
+                        </div>
+                        <div class="pagination-buttons">
+                            <button class="btn-secondary pagination-btn" id="pendingPrev" disabled>
+                                <i class="fas fa-chevron-left"></i> Prev
+                            </button>
+                            <span id="pendingPageInfo">Page 1 of 1</span>
+                            <button class="btn-secondary pagination-btn" id="pendingNext">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>
