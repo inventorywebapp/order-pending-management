@@ -4,8 +4,8 @@
 
 const CONFIG = {
     // Google API Credentials
-    CLIENT_ID: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
-    API_KEY: 'YOUR_GOOGLE_API_KEY',
+    CLIENT_ID: '16032621441-uiqg2dr6biekknpemrkgf6h9k1f1u4eh.apps.googleusercontent.com',
+    API_KEY: 'AIzaSyBAxsOA-A9qdnPbcmx6hJ39NIUM-lUSgTI',
     SCOPES: 'https://www.googleapis.com/auth/drive.readonly',
 
     // Google Drive Folder IDs
