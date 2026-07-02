@@ -1,18 +1,38 @@
-# Ignore system files
-.DS_Store
-Thumbs.db
+# Environment variables (CRITICAL - NEVER COMMIT)
+.env
+.env.local
+.env.*.local
+*.env
 
-# Ignore IDE files
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+build/
+.vite/
+
+# IDE
 .vscode/
 .idea/
 
-# Ignore environment files (if any)
-.env
-*.env
+# OS
+.DS_Store
+Thumbs.db
 
-# Ignore log files
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# ⚠️ IMPORTANT: Do NOT ignore config.js
-# We need config.js for GitHub Pages to work.
-# The API key in config.js is public, but restricted to this domain only.
+# Backend
+server/uploads/
+*.db
+*.sqlite
+__pycache__/
+*.pyc
+venv/
+env/
