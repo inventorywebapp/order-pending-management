@@ -306,6 +306,8 @@ class OrderManagementApp {
 
     // js/app.js - Update processExcelFiles
 
+// js/app.js - Update processExcelFiles method
+
 async processExcelFiles(files, type) {
     const data = [];
     
@@ -316,15 +318,30 @@ async processExcelFiles(files, type) {
                 console.log(`📄 Processing ${type} file: ${file.name}`);
                 const arrayBuffer = await driveManager.downloadFile(file.id);
                 
+                // Check if we got valid data
+                if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                    console.error(`❌ Empty data for ${file.name}`);
+                    continue;
+                }
+                
+                console.log(`📊 ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
+                
                 // Parse Excel using XLSX library
                 const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                console.log(`📊 Sheets: ${workbook.SheetNames.join(', ')}`);
+                
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet);
                 
                 console.log(`📊 Found ${jsonData.length} rows in ${file.name}`);
                 
-                // Map the data
-                const parsedData = jsonData.map(row => this.mapExcelRow(row, type)).filter(row => row !== null);
+                if (jsonData.length > 0) {
+                    console.log(`📋 First row sample:`, jsonData[0]);
+                }
+                
+                const parsedData = jsonData
+                    .map(row => this.mapExcelRow(row, type))
+                    .filter(row => row !== null);
                 data.push(...parsedData);
                 
             } catch (error) {
@@ -335,7 +352,6 @@ async processExcelFiles(files, type) {
     
     return data;
 }
-
     // In js/app.js - Replace the parseExcelData method
 
 // In js/app.js - Replace the entire parseExcelData method
