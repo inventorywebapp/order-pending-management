@@ -2196,60 +2196,63 @@ class OrderManagementApp {
 
     // ============ RENDER METHODS ============
 
-    renderOrders() {
-        const tbody = document.getElementById('ordersBody');
-        if (this.data.orders.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders found</td></tr>`;
-            return;
-        }
-        tbody.innerHTML = this.data.orders.map(order => `
-            <tr>
-                <td><strong>${order.sku}</strong></td>
-                <td>${order.qty}</td>
-                <td>${order.supplier}</td>
-                <td>${this.formatDate(order.orderDate)}</td>
-                <td>${order.orderCode}</td>
-                <td><span class="status-badge status-pending">Pending</span></td>
-                <td>${order.qty}</td>
-            </tr>
-        `).join('');
-    }
+    // js/app.js - Replace renderOrders method
 
-    renderDeliveries() {
-        const tbody = document.getElementById('deliveriesBody');
-        if (this.data.deliveries.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries found</td></tr>`;
-            return;
-        }
-        tbody.innerHTML = this.data.deliveries.map(delivery => `
-            <tr>
-                <td><strong>${delivery.sku}</strong></td>
-                <td>${delivery.qty}</td>
-                <td>${delivery.supplier}</td>
-                <td>${this.formatDate(delivery.deliveryDate)}</td>
-                <td>${delivery.boxCode || '-'}</td>
-                <td><span class="status-badge status-partial">In Transit</span></td>
-            </tr>
-        `).join('');
+renderOrders() {
+    const tbody = document.getElementById('ordersBody');
+    if (this.data.orders.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders found</td></tr>`;
+        return;
     }
+    tbody.innerHTML = this.data.orders.map(order => `
+        <tr>
+            <td><strong>${order.sku}</strong></td>
+            <td>${order.qty}</td>
+            <td>${order.supplier}</td>
+            <td>${this.formatDate(order.orderDate)}</td>
+            <td>${order.orderCode}</td>
+            <td><span class="status-badge status-pending">Pending</span></td>
+        </tr>
+    `).join('');
+}
 
-    renderActual() {
-        const tbody = document.getElementById('actualBody');
-        if (this.data.actual.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items found</td></tr>`;
-            return;
-        }
-        tbody.innerHTML = this.data.actual.map(actual => `
-            <tr>
-                <td><strong>${actual.sku}</strong></td>
-                <td>${actual.qty}</td>
-                <td>${actual.supplier}</td>
-                <td>${this.formatDate(actual.actualDate)}</td>
-                <td>${actual.boxCode || '-'}</td>
-                <td><span class="status-badge status-completed">Received</span></td>
-            </tr>
-        `).join('');
+// js/app.js - Replace renderDeliveries method
+
+renderDeliveries() {
+    const tbody = document.getElementById('deliveriesBody');
+    if (this.data.deliveries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries found</td></tr>`;
+        return;
     }
+    tbody.innerHTML = this.data.deliveries.map(delivery => `
+        <tr>
+            <td><strong>${delivery.sku}</strong></td>
+            <td>${delivery.qty}</td>
+            <td>${delivery.supplier}</td>
+            <td>${this.formatDate(delivery.deliveryDate)}</td>
+            <td>${delivery.boxCode || '-'}</td>
+        </tr>
+    `).join('');
+}
+
+// js/app.js - Replace renderActual method
+
+renderActual() {
+    const tbody = document.getElementById('actualBody');
+    if (this.data.actual.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items found</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = this.data.actual.map(actual => `
+        <tr>
+            <td><strong>${actual.sku}</strong></td>
+            <td>${actual.qty}</td>
+            <td>${actual.supplier}</td>
+            <td>${this.formatDate(actual.actualDate)}</td>
+            <td>${actual.boxCode || '-'}</td>
+        </tr>
+    `).join('');
+}
 
     renderPending() {
         const tbody = document.getElementById('pendingBody');
