@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Pending Management System</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-boxes"></i> OPM</h2>
+                <span class="badge">v1.0</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-view="orders">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Orders</span>
+                </a>
+                <a href="#" class="nav-item" data-view="deliveries">
+                    <i class="fas fa-truck"></i>
+                    <span>Deliveries</span>
+                </a>
+                <a href="#" class="nav-item" data-view="actual">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Actual Received</span>
+                </a>
+                <a href="#" class="nav-item" data-view="pending">
+                    <i class="fas fa-clock"></i>
+                    <span>Pending Orders</span>
+                </a>
+                <a href="#" class="nav-item" data-view="analysis">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Analysis</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Admin</span>
+                </div>
+                <button class="btn-refresh" id="refreshData">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header">
+                <button class="menu-toggle" id="menuToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="header-title">
+                    <h1 id="pageTitle">Dashboard</h1>
+                    <p id="pageSubtitle">Overview of your order management</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-upload" id="uploadBtn">
+                        <i class="fas fa-upload"></i> Upload
+                    </button>
+                    <button class="btn-filter" id="filterBtn">
+                        <i class="fas fa-filter"></i> Filter
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dashboard View -->
+<section id="view-dashboard" class="view active">
+    <!-- KPI Summary Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon blue">
+                <i class="fas fa-shopping-cart"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Total Order Quantity</h3>
+                <p class="stat-number" id="totalOrdersQty">0</p>
+                <small style="color: var(--gray-500);" id="totalOrdersRecords">(0 records)</small>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Fulfillment Rate</h3>
+                <p class="stat-number" id="fulfillmentRate">0%</p>
+                <small style="color: var(--gray-500);" id="fulfillmentDetails">0 / 0 fulfilled</small>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Pending Quantity</h3>
+                <p class="stat-number" id="pendingOrdersQty">0</p>
+                <small style="color: var(--gray-500);" id="pendingOrdersRecords">(0 records)</small>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon purple">
+                <i class="fas fa-truck"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Excess Delivered</h3>
+                <p class="stat-number" id="excessDelivered">0</p>
+                <small style="color: var(--gray-500);">Units over ordered</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplier KPIs Section -->
+    <div class="supplier-kpi-section" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 style="font-size: 18px; font-weight: 600;">Supplier KPIs</h2>
+            <select id="kpiSupplierFilter" class="filter-select" style="padding: 6px 12px; font-size: 13px;">
+                <option value="">All Suppliers</option>
+            </select>
+        </div>
+        <div id="supplierKpiGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+            <!-- Dynamic supplier cards -->
+        </div>
+    </div>
+
+    <!-- Mismatch Checker -->
+    <div id="mismatchCheckerContainer">
+        <!-- Dynamically rendered -->
+    </div>
+
+    <!-- Recent Activity with Load More -->
+    <div class="recent-activity">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 style="font-size: 18px; font-weight: 600;">Recent Activity</h2>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="font-size: 13px; color: var(--gray-500);" id="activityCount">0 activities</span>
+                <button id="loadMoreBtn" class="btn-secondary" style="padding: 4px 12px; font-size: 12px;">
+                    Load More
+                </button>
+            </div>
+        </div>
+        <div class="activity-list" id="activityList">
+            <!-- Dynamic content -->
+        </div>
+    </div>
+</section>
+
+            <!-- Orders View -->
+            <section id="view-orders" class="view">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>All Orders</h2>
+                        <div class="table-controls">
+                            <input type="text" placeholder="Search orders..." id="orderSearch" class="search-input">
+                            <select id="orderSupplierFilter" class="filter-select">
+                                <option value="">All Suppliers</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="ordersTable">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Qty</th>
+                                    <th>Supplier</th>
+                                    <th>Order Date</th>
+                                    <th>Order Code</th>
+                                    <th>Status</th>
+                                    <!--<th>Remaining</th>-->
+                                </tr>
+                            </thead>
+                            <tbody id="ordersBody">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Deliveries View -->
+            <section id="view-deliveries" class="view">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Deliveries</h2>
+                        <div class="table-controls">
+                            <input type="text" placeholder="Search deliveries..." id="deliverySearch" class="search-input">
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="deliveriesTable">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Qty</th>
+                                    <th>Supplier</th>
+                                    <th>Est. Delivery Date</th>
+                                    <th>Box Code</th>
+                                    <!--<th>Status</th>-->
+                                </tr>
+                            </thead>
+                            <tbody id="deliveriesBody">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Actual Received View -->
+            <section id="view-actual" class="view">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Actual Received</h2>
+                        <div class="table-controls">
+                            <input type="text" placeholder="Search actual received..." id="actualSearch" class="search-input">
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="actualTable">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Qty</th>
+                                    <th>Supplier</th>
+                                    <th>Actual Delivery Date</th>
+                                    <th>Box Code</th>
+                                    <!--<th>Status</th>-->
+                                </tr>
+                            </thead>
+                            <tbody id="actualBody">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Pending Orders View -->
+            <section id="view-pending" class="view">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Pending Orders</h2>
+                        <div class="table-controls">
+                            <input type="text" placeholder="Search pending..." id="pendingSearch" class="search-input">
+                            <select id="pendingSupplierFilter" class="filter-select">
+                                <option value="">All Suppliers</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="pendingTable">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Ordered</th>
+                                    <th>Delivered</th>
+                                    <th>Remaining</th>
+                                    <th>Supplier</th>
+                                    <th>Order Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendingBody">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analysis View -->
+            <section id="view-analysis" class="view">
+                <div class="analysis-container">
+                    <h2>Analysis & Reports</h2>
+                    <div class="analysis-controls">
+                       <select id="analysisType" class="analysis-select">
+                            <option value="supplier">By Supplier</option>
+                            <option value="sku">By SKU</option>
+                            <option value="date">By Date</option>
+                        </select> 
+                        <button class="btn-export" id="exportBtn">
+                            <i class="fas fa-download"></i> Export
+                        </button> 
+                    </div>
+                    <div id="analysisContent">
+                        <!-- Dynamic analysis content -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Upload Files</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-section">
+                    <h3><i class="fas fa-shopping-cart"></i> Order Files</h3>
+                    <div class="drop-zone" id="orderDropZone">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drop Excel files here or click to browse</p>
+                        <input type="file" multiple accept=".xlsx,.xls" id="orderFiles">
+                    </div>
+                </div>
+                <div class="upload-section">
+                    <h3><i class="fas fa-truck"></i> Delivery Files</h3>
+                    <div class="drop-zone" id="deliveryDropZone">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drop Excel files here or click to browse</p>
+                        <input type="file" multiple accept=".xlsx,.xls" id="deliveryFiles">
+                    </div>
+                </div>
+                <div class="upload-section">
+                    <h3><i class="fas fa-check-circle"></i> Actual Received Files</h3>
+                    <div class="drop-zone" id="actualDropZone">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drop Excel files here or click to browse</p>
+                        <input type="file" multiple accept=".xlsx,.xls" id="actualFiles">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancelUpload">Cancel</button>
+                <button class="btn-primary" id="processUpload">Process Files</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Modal -->
+    <div id="filterModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Filter Data</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="filter-group">
+                    <label>Supplier</label>
+                    <select id="filterSupplier">
+                        <option value="">All Suppliers</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Date Range</label>
+                    <input type="date" id="filterDateFrom">
+                    <input type="date" id="filterDateTo">
+                </div>
+                <div class="filter-group">
+                    <label>SKU</label>
+                    <input type="text" id="filterSKU" placeholder="Search SKU...">
+                </div>
+                <div class="filter-group">
+                    <label>Status</label>
+                    <select id="filterStatus">
+                        <option value="">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="completed">Completed</option>
+                        <option value="partial">Partial</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="clearFilters">Clear All</button>
+                <button class="btn-primary" id="applyFilters">Apply Filters</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loader"></div>
+        <p>Processing data...</p>
+    </div>
+
+    <!-- Script Loading Order - Optimized for Vite and Netlify -->
+    <!-- 1. Load Google Drive API first (external) -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
+
+    <!-- 2. Load configuration and environment -->
+    <script type="module" src="js/config.js"></script>
+    <script type="module" src="js/gdrive.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
