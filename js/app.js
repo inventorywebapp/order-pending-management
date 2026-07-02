@@ -134,10 +134,10 @@ class OrderManagementApp {
         }
         
         this.renderDashboard();
-        this.renderOrders();
-        this.renderDeliveries();
-        this.renderActual();
-        this.renderPending();
+        this.renderOrders(1);
+        this.renderDeliveries(1);
+        this.renderActual(1);
+        this.renderPending(1);
         
         this.updateSupplierFilters();
         
@@ -252,7 +252,6 @@ class OrderManagementApp {
 
         // ============ PAGINATION EVENT LISTENERS ============
 
-        // Orders Pagination
         document.getElementById('ordersPrev')?.addEventListener('click', () => {
             if (this._ordersPagination?.prev()) {
                 this.renderOrders(this._ordersPagination.currentPage);
@@ -265,7 +264,6 @@ class OrderManagementApp {
             }
         });
 
-        // Deliveries Pagination
         document.getElementById('deliveriesPrev')?.addEventListener('click', () => {
             if (this._deliveriesPagination?.prev()) {
                 this.renderDeliveries(this._deliveriesPagination.currentPage);
@@ -278,7 +276,6 @@ class OrderManagementApp {
             }
         });
 
-        // Actual Received Pagination
         document.getElementById('actualPrev')?.addEventListener('click', () => {
             if (this._actualPagination?.prev()) {
                 this.renderActual(this._actualPagination.currentPage);
@@ -291,7 +288,6 @@ class OrderManagementApp {
             }
         });
 
-        // Pending Orders Pagination
         document.getElementById('pendingPrev')?.addEventListener('click', () => {
             if (this._pendingPagination?.prev()) {
                 this.renderPending(this._pendingPagination.currentPage);
@@ -313,7 +309,6 @@ class OrderManagementApp {
             });
         });
 
-        // Modal close on outside click
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
@@ -322,7 +317,6 @@ class OrderManagementApp {
             });
         });
 
-        // Upload modal
         document.getElementById('cancelUpload').addEventListener('click', () => {
             document.getElementById('uploadModal').classList.remove('active');
         });
@@ -331,7 +325,6 @@ class OrderManagementApp {
             this.processUploads();
         });
 
-        // Filter modal
         document.getElementById('applyFilters').addEventListener('click', () => {
             this.applyFilters();
         });
@@ -340,7 +333,8 @@ class OrderManagementApp {
             this.clearFilters();
         });
 
-        // Search inputs
+        // ============ SEARCH INPUTS ============
+
         document.getElementById('orderSearch').addEventListener('input', (e) => {
             this.filterOrders(e.target.value);
         });
@@ -357,7 +351,8 @@ class OrderManagementApp {
             this.filterPending(e.target.value);
         });
 
-        // Supplier filters
+        // ============ SUPPLIER FILTERS ============
+
         document.getElementById('orderSupplierFilter').addEventListener('change', (e) => {
             this.filterOrdersBySupplier(e.target.value);
         });
@@ -2354,7 +2349,12 @@ class OrderManagementApp {
         const pageItems = this._ordersPagination.getCurrentPageItems();
         
         if (pageItems.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders found</td></tr>`;
+            const totalItems = this._ordersPagination.getTotal();
+            if (totalItems === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders found</td></tr>`;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders match your search</td></tr>`;
+            }
             paginationContainer.style.display = 'none';
             return;
         }
@@ -2393,7 +2393,12 @@ class OrderManagementApp {
         const pageItems = this._deliveriesPagination.getCurrentPageItems();
         
         if (pageItems.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries found</td></tr>`;
+            const totalItems = this._deliveriesPagination.getTotal();
+            if (totalItems === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries found</td></tr>`;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries match your search</td></tr>`;
+            }
             paginationContainer.style.display = 'none';
             return;
         }
@@ -2431,7 +2436,12 @@ class OrderManagementApp {
         const pageItems = this._actualPagination.getCurrentPageItems();
         
         if (pageItems.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items found</td></tr>`;
+            const totalItems = this._actualPagination.getTotal();
+            if (totalItems === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items found</td></tr>`;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items match your search</td></tr>`;
+            }
             paginationContainer.style.display = 'none';
             return;
         }
@@ -2473,6 +2483,17 @@ class OrderManagementApp {
         this._pendingPagination.currentPage = page;
         
         const pageItems = this._pendingPagination.getCurrentPageItems();
+        
+        if (pageItems.length === 0) {
+            const totalItems = this._pendingPagination.getTotal();
+            if (totalItems === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No pending orders</td></tr>`;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No pending orders match your search</td></tr>`;
+            }
+            paginationContainer.style.display = 'none';
+            return;
+        }
         
         const statusMap = {
             'completed': 'status-completed',
@@ -2536,167 +2557,127 @@ class OrderManagementApp {
         paginationContainer.style.display = 'flex';
     }
 
-    // ============ UTILITY METHODS ============
+    // ============ FILTER METHODS (UPDATED WITH PAGINATION RESET) ============
 
-    switchView(view) {
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.classList.toggle('active', item.dataset.view === view);
-        });
-        
-        document.querySelectorAll('.view').forEach(v => {
-            v.classList.toggle('active', v.id === `view-${view}`);
-        });
-        
-        const titles = {
-            dashboard: ['Dashboard', 'Overview of your order management'],
-            orders: ['Orders', 'Manage and track all orders'],
-            deliveries: ['Deliveries', 'Track all deliveries'],
-            actual: ['Actual Received', 'View actual received items'],
-            pending: ['Pending Orders', 'View and manage pending orders'],
-            analysis: ['Analysis', 'Analyze order data and generate reports']
-        };
-        
-        const [title, subtitle] = titles[view] || ['Dashboard', ''];
-        document.getElementById('pageTitle').textContent = title;
-        document.getElementById('pageSubtitle').textContent = subtitle;
-        
-        this.currentView = view;
-        
-        if (view === 'analysis') {
-            this.renderAnalysis();
-            this.addBossExport();
-        }
-        
-        if (window.innerWidth <= 768) {
-            document.getElementById('sidebar').classList.remove('open');
-        }
-    }
-
-    openUploadModal() {
-        document.getElementById('uploadModal').classList.add('active');
-        document.getElementById('orderFiles').value = '';
-        document.getElementById('deliveryFiles').value = '';
-        document.getElementById('actualFiles').value = '';
-    }
-
-    openFilterModal() {
-        document.getElementById('filterModal').classList.add('active');
-        document.getElementById('filterSupplier').value = this.filters.supplier;
-        document.getElementById('filterDateFrom').value = this.filters.dateFrom;
-        document.getElementById('filterDateTo').value = this.filters.dateTo;
-        document.getElementById('filterSKU').value = this.filters.sku;
-        document.getElementById('filterStatus').value = this.filters.status;
-    }
-
-    updateSupplierFilters() {
-        const suppliers = [...new Set(this.data.orders.map(o => o.supplier))];
-        const selects = ['orderSupplierFilter', 'pendingSupplierFilter', 'filterSupplier', 'supplierExportSelect'];
-        
-        selects.forEach(id => {
-            const select = document.getElementById(id);
-            if (select) {
-                const currentValue = select.value;
-                select.innerHTML = '<option value="">All Suppliers</option>';
-                suppliers.forEach(supplier => {
-                    select.innerHTML += `<option value="${supplier}">${supplier}</option>`;
-                });
-                select.value = currentValue;
+    filterOrders(searchTerm) {
+        if (!searchTerm || searchTerm.trim() === '') {
+            if (this._ordersPagination) {
+                this._ordersPagination.updateItems(this.data.orders);
+                this._ordersPagination.currentPage = 1;
+                this.renderOrders(1);
             }
-        });
+            return;
+        }
+        
+        const term = searchTerm.toLowerCase().trim();
+        const filtered = this.data.orders.filter(order => 
+            (order.sku && order.sku.toLowerCase().includes(term)) ||
+            (order.supplier && order.supplier.toLowerCase().includes(term)) ||
+            (order.orderCode && order.orderCode.toLowerCase().includes(term))
+        );
+        
+        if (this._ordersPagination) {
+            this._ordersPagination.updateItems(filtered);
+            this._ordersPagination.currentPage = 1;
+            this.renderOrders(1);
+        }
     }
 
-    // js/app.js - Replace filterOrders method
-
-filterOrders(searchTerm) {
-    const filtered = this.data.orders.filter(order => 
-        order.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.orderCode.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    
-    // Reset to page 1 when filtering
-    if (this._ordersPagination) {
-        this._ordersPagination.updateItems(filtered);
-        this._ordersPagination.currentPage = 1;
-        this.renderOrders(1);
+    filterOrdersBySupplier(supplier) {
+        const filtered = (supplier && supplier !== '') ? 
+            this.data.orders.filter(o => o.supplier === supplier) : 
+            this.data.orders;
+        
+        if (this._ordersPagination) {
+            this._ordersPagination.updateItems(filtered);
+            this._ordersPagination.currentPage = 1;
+            this.renderOrders(1);
+        }
     }
-}
 
-// js/app.js - Replace filterOrdersBySupplier method
-
-filterOrdersBySupplier(supplier) {
-    const filtered = supplier ? 
-        this.data.orders.filter(o => o.supplier === supplier) : 
-        this.data.orders;
-    
-    if (this._ordersPagination) {
-        this._ordersPagination.updateItems(filtered);
-        this._ordersPagination.currentPage = 1;
-        this.renderOrders(1);
+    filterDeliveries(searchTerm) {
+        if (!searchTerm || searchTerm.trim() === '') {
+            if (this._deliveriesPagination) {
+                this._deliveriesPagination.updateItems(this.data.deliveries);
+                this._deliveriesPagination.currentPage = 1;
+                this.renderDeliveries(1);
+            }
+            return;
+        }
+        
+        const term = searchTerm.toLowerCase().trim();
+        const filtered = this.data.deliveries.filter(delivery => 
+            (delivery.sku && delivery.sku.toLowerCase().includes(term)) ||
+            (delivery.supplier && delivery.supplier.toLowerCase().includes(term)) ||
+            (delivery.boxCode && delivery.boxCode.toLowerCase().includes(term))
+        );
+        
+        if (this._deliveriesPagination) {
+            this._deliveriesPagination.updateItems(filtered);
+            this._deliveriesPagination.currentPage = 1;
+            this.renderDeliveries(1);
+        }
     }
-}
 
-// js/app.js - Replace filterDeliveries method
-
-filterDeliveries(searchTerm) {
-    const filtered = this.data.deliveries.filter(delivery => 
-        delivery.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        delivery.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (delivery.boxCode && delivery.boxCode.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-    
-    if (this._deliveriesPagination) {
-        this._deliveriesPagination.updateItems(filtered);
-        this._deliveriesPagination.currentPage = 1;
-        this.renderDeliveries(1);
+    filterActual(searchTerm) {
+        if (!searchTerm || searchTerm.trim() === '') {
+            if (this._actualPagination) {
+                this._actualPagination.updateItems(this.data.actual);
+                this._actualPagination.currentPage = 1;
+                this.renderActual(1);
+            }
+            return;
+        }
+        
+        const term = searchTerm.toLowerCase().trim();
+        const filtered = this.data.actual.filter(actual => 
+            (actual.sku && actual.sku.toLowerCase().includes(term)) ||
+            (actual.supplier && actual.supplier.toLowerCase().includes(term)) ||
+            (actual.boxCode && actual.boxCode.toLowerCase().includes(term))
+        );
+        
+        if (this._actualPagination) {
+            this._actualPagination.updateItems(filtered);
+            this._actualPagination.currentPage = 1;
+            this.renderActual(1);
+        }
     }
-}
 
-// js/app.js - Replace filterActual method
-
-filterActual(searchTerm) {
-    const filtered = this.data.actual.filter(actual => 
-        actual.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        actual.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (actual.boxCode && actual.boxCode.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-    
-    if (this._actualPagination) {
-        this._actualPagination.updateItems(filtered);
-        this._actualPagination.currentPage = 1;
-        this.renderActual(1);
+    filterPending(searchTerm) {
+        if (!searchTerm || searchTerm.trim() === '') {
+            if (this._pendingPagination) {
+                this._pendingPagination.updateItems(this.data.pending);
+                this._pendingPagination.currentPage = 1;
+                this.renderPending(1);
+            }
+            return;
+        }
+        
+        const term = searchTerm.toLowerCase().trim();
+        const filtered = this.data.pending.filter(pending => 
+            (pending.sku && pending.sku.toLowerCase().includes(term)) ||
+            (pending.supplier && pending.supplier.toLowerCase().includes(term)) ||
+            (pending.orderCode && pending.orderCode.toLowerCase().includes(term))
+        );
+        
+        if (this._pendingPagination) {
+            this._pendingPagination.updateItems(filtered);
+            this._pendingPagination.currentPage = 1;
+            this.renderPending(1);
+        }
     }
-}
 
-// js/app.js - Replace filterPending method
-
-filterPending(searchTerm) {
-    const filtered = this.data.pending.filter(pending => 
-        pending.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pending.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pending.orderCode.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    
-    if (this._pendingPagination) {
-        this._pendingPagination.updateItems(filtered);
-        this._pendingPagination.currentPage = 1;
-        this.renderPending(1);
+    filterPendingBySupplier(supplier) {
+        const filtered = (supplier && supplier !== '') ? 
+            this.data.pending.filter(p => p.supplier === supplier) : 
+            this.data.pending;
+        
+        if (this._pendingPagination) {
+            this._pendingPagination.updateItems(filtered);
+            this._pendingPagination.currentPage = 1;
+            this.renderPending(1);
+        }
     }
-}
-
-// js/app.js - Replace filterPendingBySupplier method
-
-filterPendingBySupplier(supplier) {
-    const filtered = supplier ? 
-        this.data.pending.filter(p => p.supplier === supplier) : 
-        this.data.pending;
-    
-    if (this._pendingPagination) {
-        this._pendingPagination.updateItems(filtered);
-        this._pendingPagination.currentPage = 1;
-        this.renderPending(1);
-    }
-}
 
     // ============ UPLOAD METHODS ============
 
