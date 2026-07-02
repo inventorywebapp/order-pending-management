@@ -1,4 +1,8 @@
 // Main Application
+// Import required modules
+import { CONFIG } from './config.js';
+import { driveManager } from './gdrive.js';
+
 class OrderManagementApp {
     constructor() {
         this.data = {
@@ -1597,6 +1601,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     loadGoogleAPI().then(() => {
+        // Make sure driveManager is available globally
+        if (typeof window.driveManager === 'undefined' && typeof driveManager !== 'undefined') {
+            window.driveManager = driveManager;
+        }
         window.app = new OrderManagementApp();
     });
 });
