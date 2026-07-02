@@ -10,72 +10,121 @@ class GoogleDriveManager {
         this.tokenClient = null;
         this.isAuthenticated = false;
         console.log('🔧 GoogleDriveManager initialized');
+        console.log('🔧 Client ID configured:', this.clientId ? '✅ Yes' : '❌ No');
+        console.log('🔧 API Key configured:', this.apiKey ? '✅ Yes' : '❌ No');
     }
 
     // Initialize Google Drive API
     init() {
         return new Promise((resolve, reject) => {
-            try {
-                if (typeof gapi === 'undefined') {
-                    console.warn('⚠️ gapi not loaded yet, waiting...');
-                    // Wait for gapi to load
-                    const checkGapi = setInterval(() => {
-                        if (typeof gapi !== 'undefined') {
-                            clearInterval(checkGapi);
-                            this.initGapi(resolve, reject);
-                        }
-                    }, 100);
-                    // Timeout after 10 seconds
-                    setTimeout(() => {
+            console.log('🔧 Initializing Google Drive...');
+            
+            // Check if gapi is loaded
+            if (typeof gapi === 'undefined') {
+                console.warn('⚠️ gapi not loaded yet, waiting...');
+                const checkGapi = setInterval(() => {
+                    if (typeof gapi !== 'undefined') {
                         clearInterval(checkGapi);
-                        reject(new Error('Timeout loading Google API'));
-                    }, 10000);
-                    return;
-                }
-                this.initGapi(resolve, reject);
-            } catch (error) {
-                reject(error);
+                        console.log('✅ gapi loaded, initializing...');
+                        this.initGapi(resolve, reject);
+                    }
+                }, 200);
+                setTimeout(() => {
+                    clearInterval(checkGapi);
+                    reject(new Error('Timeout loading Google API - gapi not loaded'));
+                }, 15000);
+                return;
             }
+            
+            // Check if google.accounts is loaded for OAuth
+            if (typeof google === 'undefined' || typeof google.accounts === 'undefined') {
+                console.warn('⚠️ google.accounts not loaded yet, waiting...');
+                const checkGoogle = setInterval(() => {
+                    if (typeof google !== 'undefined' && typeof google.accounts !== 'undefined') {
+                        clearInterval(checkGoogle);
+                        console.log('✅ google.accounts loaded, initializing...');
+                        this.initGapi(resolve, reject);
+                    }
+                }, 200);
+                setTimeout(() => {
+                    clearInterval(checkGoogle);
+                    reject(new Error('Timeout loading Google OAuth - google.accounts not loaded'));
+                }, 15000);
+                return;
+            }
+            
+            this.initGapi(resolve, reject);
         });
     }
 
     initGapi(resolve, reject) {
         try {
-            gapi.load('client', () => {
-                gapi.client.init({
-                    apiKey: this.apiKey,
-                    discoveryDocs: this.discoveryDocs,
-                }).then(() => {
+            console.log('🔧 Initializing gapi client...');
+            
+            gapi.load('client', async () => {
+                try {
+                    await gapi.client.init({
+                        apiKey: this.apiKey,
+                        discoveryDocs: this.discoveryDocs,
+                    });
+                    console.log('✅ gapi client initialized');
+                    
                     // Initialize OAuth
                     if (typeof google !== 'undefined' && google.accounts) {
-                        this.tokenClient = google.accounts.oauth2.initTokenClient({
-                            client_id: this.clientId,
-                            scope: this.scopes,
-                            callback: (tokenResponse) => {
-                                if (tokenResponse.error) {
-                                    reject(tokenResponse.error);
-                                    return;
-                                }
+                        console.log('🔧 Initializing OAuth token client...');
+                        try {
+                            this.tokenClient = google.accounts.oauth2.initTokenClient({
+                                client_id: this.clientId,
+                                scope: this.scopes,
+                                callback: (tokenResponse) => {
+                                    console.log('🔧 OAuth callback received');
+                                    if (tokenResponse.error) {
+                                        console.error('❌ OAuth error:', tokenResponse.error);
+                                        reject(tokenResponse.error);
+                                        return;
+                                    }
+                                    this.isAuthenticated = true;
+                                    console.log('✅ Google Drive authenticated successfully');
+                                    resolve();
+                                },
+                            });
+                            console.log('✅ OAuth token client initialized');
+                            
+                            // Check if already authenticated
+                            if (gapi.client.getToken()) {
                                 this.isAuthenticated = true;
-                                console.log('✅ Google Drive authenticated');
+                                console.log('✅ Already authenticated');
                                 resolve();
-                            },
-                        });
-                        
-                        // Check if already authenticated
-                        if (gapi.client.getToken()) {
-                            this.isAuthenticated = true;
-                            resolve();
-                        } else {
+                            } else {
+                                // Try to get token silently
+                                console.log('🔧 Attempting silent authentication...');
+                                try {
+                                    this.tokenClient.requestAccessToken({
+                                        prompt: 'none', // Try without user interaction first
+                                    });
+                                    // The callback will handle the rest
+                                } catch (silentError) {
+                                    console.warn('⚠️ Silent authentication failed, will prompt user when needed');
+                                    // Continue without auth - will prompt when needed
+                                    resolve();
+                                }
+                            }
+                        } catch (oauthError) {
+                            console.error('❌ OAuth initialization error:', oauthError);
+                            // Continue without OAuth - will try again when needed
                             resolve();
                         }
                     } else {
-                        console.warn('⚠️ Google OAuth not available, attempting without auth');
+                        console.warn('⚠️ Google OAuth not available');
                         resolve();
                     }
-                }).catch(reject);
+                } catch (gapiError) {
+                    console.error('❌ gapi.client.init error:', gapiError);
+                    reject(gapiError);
+                }
             });
         } catch (error) {
+            console.error('❌ initGapi error:', error);
             reject(error);
         }
     }
@@ -83,40 +132,78 @@ class GoogleDriveManager {
     // Authenticate user
     authenticate() {
         return new Promise((resolve, reject) => {
+            console.log('🔧 Authenticating...');
+            
+            // Check if we already have a token
+            try {
+                const token = gapi.client.getToken();
+                if (token) {
+                    this.isAuthenticated = true;
+                    console.log('✅ Already authenticated (token exists)');
+                    resolve();
+                    return;
+                }
+            } catch (e) {
+                console.warn('⚠️ Could not check token:', e);
+            }
+            
             if (this.isAuthenticated) {
+                console.log('✅ Already authenticated (flag)');
                 resolve();
                 return;
             }
             
             if (!this.tokenClient) {
-                reject(new Error('Token client not initialized'));
-                return;
+                console.warn('⚠️ Token client not initialized, re-initializing...');
+                // Try to re-initialize
+                try {
+                    if (typeof google !== 'undefined' && google.accounts) {
+                        console.log('🔧 Re-initializing token client...');
+                        this.tokenClient = google.accounts.oauth2.initTokenClient({
+                            client_id: this.clientId,
+                            scope: this.scopes,
+                            callback: (tokenResponse) => {
+                                console.log('🔧 OAuth callback received');
+                                if (tokenResponse.error) {
+                                    console.error('❌ OAuth error:', tokenResponse.error);
+                                    reject(tokenResponse.error);
+                                    return;
+                                }
+                                this.isAuthenticated = true;
+                                console.log('✅ Google Drive authenticated successfully');
+                                resolve();
+                            },
+                        });
+                        console.log('✅ Token client re-initialized');
+                    } else {
+                        reject(new Error('Google OAuth library not available'));
+                        return;
+                    }
+                } catch (e) {
+                    reject(new Error('Could not initialize OAuth: ' + e.message));
+                    return;
+                }
             }
             
-            this.tokenClient.requestAccessToken({
-                prompt: 'consent',
-            });
-            
-            // The callback will handle the resolution
-            const originalCallback = this.tokenClient.callback;
-            this.tokenClient.callback = (tokenResponse) => {
-                if (tokenResponse.error) {
-                    reject(tokenResponse.error);
-                } else {
-                    this.isAuthenticated = true;
-                    resolve();
-                }
-                if (originalCallback) {
-                    originalCallback(tokenResponse);
-                }
-            };
+            try {
+                console.log('🔧 Requesting access token...');
+                this.tokenClient.requestAccessToken({
+                    prompt: 'consent', // Force consent to ensure we get a token
+                });
+                // The callback will handle the resolution
+            } catch (error) {
+                console.error('❌ Error requesting access token:', error);
+                reject(error);
+            }
         });
     }
 
     // List files in a folder
     async listFiles(folderId) {
+        console.log('🔧 Listing files in folder:', folderId);
         try {
             await this.authenticate();
+            console.log('✅ Authenticated, listing files...');
             
             const response = await gapi.client.drive.files.list({
                 q: `'${folderId}' in parents and trashed=false`,
@@ -124,9 +211,10 @@ class GoogleDriveManager {
                 orderBy: 'modifiedTime desc',
             });
             
+            console.log(`✅ Found ${response.result.files.length} files`);
             return response.result.files;
         } catch (error) {
-            console.error('Error listing files:', error);
+            console.error('❌ Error listing files:', error);
             throw error;
         }
     }
