@@ -223,20 +223,36 @@ class GoogleDriveManager {
     }
 }
 
-    // js/gdrive.js - Update downloadFile method
+    // js/gdrive.js - Replace the downloadFile method
 
 async downloadFile(fileId) {
     try {
         await this.authenticate();
         
-        const response = await gapi.client.drive.files.get({
-            fileId: fileId,
-            alt: 'media',
-        }, {
-            responseType: 'arraybuffer'  // ← IMPORTANT: Get binary data
-        });
+        // Use fetch with the Drive API to get binary data
+        const token = gapi.client.getToken();
+        if (!token) {
+            throw new Error('No auth token available');
+        }
         
-        return response.body;
+        const response = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${token.access_token}`,
+                },
+            }
+        );
+        
+        if (!response.ok) {
+            throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+        }
+        
+        // Get the data as ArrayBuffer
+        const arrayBuffer = await response.arrayBuffer();
+        console.log(`📥 Downloaded file ${fileId}, size: ${arrayBuffer.byteLength} bytes`);
+        return arrayBuffer;
+        
     } catch (error) {
         console.error('Error downloading file:', error);
         throw error;
