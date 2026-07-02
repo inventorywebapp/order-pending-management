@@ -1,10 +1,18 @@
-# Ignore config with secrets
-js/config.js
+# Ignore system files
+.DS_Store
+Thumbs.db
 
-# Ignore environment files
+# Ignore IDE files
+.vscode/
+.idea/
+
+# Ignore environment files (if any)
 .env
 *.env
 
-# System files
-.DS_Store
-Thumbs.db
+# Ignore log files
+*.log
+
+# ⚠️ IMPORTANT: Do NOT ignore config.js
+# We need config.js for GitHub Pages to work.
+# The API key in config.js is public, but restricted to this domain only.
