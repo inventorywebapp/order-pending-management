@@ -2,7 +2,7 @@
 // Import required modules
 import { CONFIG } from './config.js';
 import { driveManager } from './gdrive.js';
-import * as XLSX from 'xlsx';  // ← ADD THIS
+import * as XLSX from 'xlsx';
 
 class OrderManagementApp {
     constructor() {
@@ -304,368 +304,343 @@ class OrderManagementApp {
         }
     }
 
-    // js/app.js - Update processExcelFiles
-
-// js/app.js - Update processExcelFiles method
-
-async processExcelFiles(files, type) {
-    const data = [];
-    
-    for (const file of files) {
-        if (file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-            file.mimeType === 'application/vnd.ms-excel') {
-            try {
-                console.log(`📄 Processing ${type} file: ${file.name}`);
-                const arrayBuffer = await driveManager.downloadFile(file.id);
-                
-                // Check if we got valid data
-                if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-                    console.error(`❌ Empty data for ${file.name}`);
-                    continue;
+    async processExcelFiles(files, type) {
+        const data = [];
+        
+        for (const file of files) {
+            if (file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                file.mimeType === 'application/vnd.ms-excel') {
+                try {
+                    console.log(`📄 Processing ${type} file: ${file.name}`);
+                    const arrayBuffer = await driveManager.downloadFile(file.id);
+                    
+                    // Check if we got valid data
+                    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                        console.error(`❌ Empty data for ${file.name}`);
+                        continue;
+                    }
+                    
+                    console.log(`📊 ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
+                    
+                    // Parse Excel using XLSX library
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    console.log(`📊 Sheets: ${workbook.SheetNames.join(', ')}`);
+                    
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    
+                    console.log(`📊 Found ${jsonData.length} rows in ${file.name}`);
+                    
+                    if (jsonData.length > 0) {
+                        console.log(`📋 First row sample:`, jsonData[0]);
+                    }
+                    
+                    const parsedData = jsonData
+                        .map(row => this.mapExcelRow(row, type))
+                        .filter(row => row !== null);
+                    data.push(...parsedData);
+                    
+                } catch (error) {
+                    console.error(`❌ Error processing file ${file.name}:`, error);
                 }
-                
-                console.log(`📊 ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
-                
-                // Parse Excel using XLSX library
-                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                console.log(`📊 Sheets: ${workbook.SheetNames.join(', ')}`);
-                
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-                
-                console.log(`📊 Found ${jsonData.length} rows in ${file.name}`);
-                
-                if (jsonData.length > 0) {
-                    console.log(`📋 First row sample:`, jsonData[0]);
-                }
-                
-                const parsedData = jsonData
-                    .map(row => this.mapExcelRow(row, type))
-                    .filter(row => row !== null);
-                data.push(...parsedData);
-                
-            } catch (error) {
-                console.error(`❌ Error processing file ${file.name}:`, error);
             }
         }
+        
+        return data;
     }
-    
-    return data;
-}
-    // In js/app.js - Replace the parseExcelData method
 
-// In js/app.js - Replace the entire parseExcelData method
-
-async parseExcelData(content, type) {
-    console.log(`📝 Parsing ${type} data - content length: ${content?.length || 0}`);
-    
-    // If content is empty, return mock data
-    if (!content || content.length === 0) {
-        console.warn(`⚠️ Empty content for ${type}, returning mock data`);
-        return this.getMockData(type);
-    }
-    
-    try {
-        // Try to parse as CSV or plain text
-        const lines = content.split('\n').filter(line => line.trim());
-        if (lines.length < 2) {
-            console.warn(`⚠️ Not enough lines for ${type}, returning mock data`);
+    async parseExcelData(content, type) {
+        console.log(`📝 Parsing ${type} data - content length: ${content?.length || 0}`);
+        
+        // If content is empty, return mock data
+        if (!content || content.length === 0) {
+            console.warn(`⚠️ Empty content for ${type}, returning mock data`);
             return this.getMockData(type);
         }
         
-        console.log(`📄 Found ${lines.length} lines in ${type} file`);
+        try {
+            // Try to parse as CSV or plain text
+            const lines = content.split('\n').filter(line => line.trim());
+            if (lines.length < 2) {
+                console.warn(`⚠️ Not enough lines for ${type}, returning mock data`);
+                return this.getMockData(type);
+            }
+            
+            console.log(`📄 Found ${lines.length} lines in ${type} file`);
+            
+            // DEBUG: Log first 3 lines to see the format
+            console.log(`📄 First 3 lines:`, lines.slice(0, 3));
+            
+            // Try to find the header line - sometimes it's not the first line
+            let headerLine = lines[0];
+            let startRow = 1;
+            
+            // If first line doesn't contain expected headers, look for them
+            const expectedHeaders = type === 'order' 
+                ? ['SKU', 'Order Qty', 'Supplier', 'Order Date', 'Order Code']
+                : type === 'delivery'
+                ? ['SKU', 'Delivery Qty', 'Supplier', 'Est. Delivery Date', 'Box Code']
+                : ['SKU', 'Delivery Qty', 'Supplier', 'Act. Delivery Date', 'Box Code'];
+            
+            // Check if first line has headers
+            let hasHeaders = false;
+            expectedHeaders.forEach(h => {
+                if (headerLine.toLowerCase().includes(h.toLowerCase())) {
+                    hasHeaders = true;
+                }
+            });
+            
+            // If no headers found, try to find them in other lines
+            if (!hasHeaders) {
+                for (let i = 0; i < Math.min(lines.length, 5); i++) {
+                    let found = 0;
+                    expectedHeaders.forEach(h => {
+                        if (lines[i].toLowerCase().includes(h.toLowerCase())) {
+                            found++;
+                        }
+                    });
+                    if (found >= 3) {
+                        headerLine = lines[i];
+                        startRow = i + 1;
+                        console.log(`📋 Found headers at line ${i+1}: ${headerLine}`);
+                        break;
+                    }
+                }
+            }
+            
+            // Parse headers - try different delimiters
+            let headers = this.parseHeaderLine(headerLine);
+            console.log(`📋 Headers found:`, headers);
+            
+            // If still no headers, use the expected ones
+            if (headers.length < 3) {
+                console.warn(`⚠️ Could not find proper headers, using defaults`);
+                headers = expectedHeaders;
+            }
+            
+            const result = [];
+            
+            // Process each row
+            for (let i = startRow; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                // Parse CSV line with proper delimiter detection
+                const values = this.parseCSVLineAdvanced(line);
+                
+                // Skip if not enough values
+                if (values.length < 2) continue;
+                
+                // Create row object
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index] || '';
+                });
+                
+                // Map to our expected format
+                const mappedRow = this.mapExcelRow(row, type);
+                if (mappedRow) {
+                    result.push(mappedRow);
+                }
+            }
+            
+            console.log(`✅ Parsed ${result.length} rows for ${type}`);
+            return result;
+            
+        } catch (error) {
+            console.error(`❌ Error parsing ${type} data:`, error);
+            return this.getMockData(type);
+        }
+    }
+
+    // Helper method to parse header line with multiple delimiter support
+    parseHeaderLine(line) {
+        // Try different delimiters
+        let delimiters = ['\t', ',', ';', '|'];
+        let bestDelimiter = ',';
+        let maxParts = 0;
         
-        // DEBUG: Log first 3 lines to see the format
-        console.log(`📄 First 3 lines:`, lines.slice(0, 3));
-        
-        // Try to find the header line - sometimes it's not the first line
-        let headerLine = lines[0];
-        let startRow = 1;
-        
-        // If first line doesn't contain expected headers, look for them
-        const expectedHeaders = type === 'order' 
-            ? ['SKU', 'Order Qty', 'Supplier', 'Order Date', 'Order Code']
-            : type === 'delivery'
-            ? ['SKU', 'Delivery Qty', 'Supplier', 'Est. Delivery Date', 'Box Code']
-            : ['SKU', 'Delivery Qty', 'Supplier', 'Act. Delivery Date', 'Box Code'];
-        
-        // Check if first line has headers
-        let hasHeaders = false;
-        expectedHeaders.forEach(h => {
-            if (headerLine.toLowerCase().includes(h.toLowerCase())) {
-                hasHeaders = true;
+        delimiters.forEach(delim => {
+            const parts = line.split(delim);
+            if (parts.length > maxParts) {
+                maxParts = parts.length;
+                bestDelimiter = delim;
             }
         });
         
-        // If no headers found, try to find them in other lines
-        if (!hasHeaders) {
-            for (let i = 0; i < Math.min(lines.length, 5); i++) {
-                let found = 0;
-                expectedHeaders.forEach(h => {
-                    if (lines[i].toLowerCase().includes(h.toLowerCase())) {
-                        found++;
-                    }
-                });
-                if (found >= 3) {
-                    headerLine = lines[i];
-                    startRow = i + 1;
-                    console.log(`📋 Found headers at line ${i+1}: ${headerLine}`);
-                    break;
-                }
-            }
-        }
+        return line.split(bestDelimiter).map(h => h.trim().replace(/^"|"$/g, ''));
+    }
+
+    // Advanced CSV line parser
+    parseCSVLineAdvanced(line) {
+        // Try to detect the delimiter by counting occurrences
+        const commaCount = (line.match(/,/g) || []).length;
+        const tabCount = (line.match(/\t/g) || []).length;
+        const semicolonCount = (line.match(/;/g) || []).length;
         
-        // Parse headers - try different delimiters
-        let headers = this.parseHeaderLine(headerLine);
-        console.log(`📋 Headers found:`, headers);
+        let delimiter = ',';
+        if (tabCount > commaCount && tabCount > semicolonCount) delimiter = '\t';
+        else if (semicolonCount > commaCount && semicolonCount > tabCount) delimiter = ';';
         
-        // If still no headers, use the expected ones
-        if (headers.length < 3) {
-            console.warn(`⚠️ Could not find proper headers, using defaults`);
-            headers = expectedHeaders;
-        }
-        
+        // Handle quoted strings
         const result = [];
+        let current = '';
+        let inQuotes = false;
         
-        // Process each row
-        for (let i = startRow; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
             
-            // Parse CSV line with proper delimiter detection
-            const values = this.parseCSVLineAdvanced(line);
-            
-            // Skip if not enough values
-            if (values.length < 2) continue;
-            
-            // Create row object
-            const row = {};
-            headers.forEach((header, index) => {
-                row[header] = values[index] || '';
-            });
-            
-            // Map to our expected format
-            const mappedRow = this.mapExcelRow(row, type);
-            if (mappedRow) {
-                result.push(mappedRow);
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === delimiter && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
             }
         }
+        result.push(current.trim());
         
-        console.log(`✅ Parsed ${result.length} rows for ${type}`);
-        return result;
-        
-    } catch (error) {
-        console.error(`❌ Error parsing ${type} data:`, error);
-        return this.getMockData(type);
+        // Clean up quotes
+        return result.map(v => v.replace(/^"|"$/g, ''));
     }
-}
 
-// Helper method to parse header line with multiple delimiter support
-parseHeaderLine(line) {
-    // Try different delimiters
-    let delimiters = ['\t', ',', ';', '|'];
-    let bestDelimiter = ',';
-    let maxParts = 0;
-    
-    delimiters.forEach(delim => {
-        const parts = line.split(delim);
-        if (parts.length > maxParts) {
-            maxParts = parts.length;
-            bestDelimiter = delim;
+    mapExcelRow(row, type) {
+        try {
+            if (type === 'order') {
+                // Get values with proper date conversion
+                const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
+                const qty = parseFloat(this.findValue(row, ['Order Qty', 'order_qty', 'Qty', 'qty', 'Quantity', 'quantity']) || 0);
+                const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
+                const orderDate = this.convertExcelDate(this.findValue(row, ['Order Date', 'order_date', 'Date', 'date']));
+                const orderCode = this.findValue(row, ['Order Code', 'order_code', 'Code', 'code']);
+                
+                if (!sku || qty === 0) return null;
+                
+                return {
+                    sku: sku,
+                    qty: qty,
+                    supplier: supplier || 'Unknown',
+                    orderDate: orderDate || new Date().toISOString().split('T')[0],
+                    orderCode: orderCode || ''
+                };
+            } else if (type === 'delivery') {
+                const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
+                const qty = parseFloat(this.findValue(row, ['Delivery Qty', 'delivery_qty', 'Qty', 'qty']) || 0);
+                const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
+                const deliveryDate = this.convertExcelDate(this.findValue(row, ['Est. Delivery Date', 'est_delivery_date', 'Delivery Date', 'delivery_date', 'Date', 'date']));
+                const boxCode = this.findValue(row, ['Box Code', 'box_code', 'Box', 'box']);
+                
+                if (!sku || qty === 0) return null;
+                
+                return {
+                    sku: sku,
+                    qty: qty,
+                    supplier: supplier || 'Unknown',
+                    deliveryDate: deliveryDate || new Date().toISOString().split('T')[0],
+                    boxCode: boxCode || ''
+                };
+            } else if (type === 'actual') {
+                const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
+                const qty = parseFloat(this.findValue(row, ['Delivery Qty', 'delivery_qty', 'Qty', 'qty']) || 0);
+                const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
+                const actualDate = this.convertExcelDate(this.findValue(row, ['Act. Delivery Date', 'act_delivery_date', 'Actual Date', 'actual_date', 'Date', 'date']));
+                const boxCode = this.findValue(row, ['Box Code', 'box_code', 'Box', 'box']);
+                
+                if (!sku || qty === 0) return null;
+                
+                return {
+                    sku: sku,
+                    qty: qty,
+                    supplier: supplier || 'Unknown',
+                    actualDate: actualDate || new Date().toISOString().split('T')[0],
+                    boxCode: boxCode || ''
+                };
+            }
+        } catch (error) {
+            console.error('❌ Error mapping row:', error);
+            return null;
         }
-    });
-    
-    return line.split(bestDelimiter).map(h => h.trim().replace(/^"|"$/g, ''));
-}
-
-// Advanced CSV line parser
-parseCSVLineAdvanced(line) {
-    // Try to detect the delimiter by counting occurrences
-    const commaCount = (line.match(/,/g) || []).length;
-    const tabCount = (line.match(/\t/g) || []).length;
-    const semicolonCount = (line.match(/;/g) || []).length;
-    
-    let delimiter = ',';
-    if (tabCount > commaCount && tabCount > semicolonCount) delimiter = '\t';
-    else if (semicolonCount > commaCount && semicolonCount > tabCount) delimiter = ';';
-    
-    // Handle quoted strings
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        
-        if (char === '"') {
-            inQuotes = !inQuotes;
-        } else if (char === delimiter && !inQuotes) {
-            result.push(current.trim());
-            current = '';
-        } else {
-            current += char;
-        }
-    }
-    result.push(current.trim());
-    
-    // Clean up quotes
-    return result.map(v => v.replace(/^"|"$/g, ''));
-}
-
-    // In js/app.js - Update mapExcelRow method
-
-// In js/app.js - Replace the mapExcelRow method
-
-// js/app.js - Replace the mapExcelRow method
-
-mapExcelRow(row, type) {
-    try {
-        if (type === 'order') {
-            // Get values with proper date conversion
-            const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
-            const qty = parseFloat(this.findValue(row, ['Order Qty', 'order_qty', 'Qty', 'qty', 'Quantity', 'quantity']) || 0);
-            const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
-            const orderDate = this.convertExcelDate(this.findValue(row, ['Order Date', 'order_date', 'Date', 'date']));
-            const orderCode = this.findValue(row, ['Order Code', 'order_code', 'Code', 'code']);
-            
-            if (!sku || qty === 0) return null;
-            
-            return {
-                sku: sku,
-                qty: qty,
-                supplier: supplier || 'Unknown',
-                orderDate: orderDate || new Date().toISOString().split('T')[0],
-                orderCode: orderCode || ''
-            };
-        } else if (type === 'delivery') {
-            const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
-            const qty = parseFloat(this.findValue(row, ['Delivery Qty', 'delivery_qty', 'Qty', 'qty']) || 0);
-            const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
-            const deliveryDate = this.convertExcelDate(this.findValue(row, ['Est. Delivery Date', 'est_delivery_date', 'Delivery Date', 'delivery_date', 'Date', 'date']));
-            const boxCode = this.findValue(row, ['Box Code', 'box_code', 'Box', 'box']);
-            
-            if (!sku || qty === 0) return null;
-            
-            return {
-                sku: sku,
-                qty: qty,
-                supplier: supplier || 'Unknown',
-                deliveryDate: deliveryDate || new Date().toISOString().split('T')[0],
-                boxCode: boxCode || ''
-            };
-        } else if (type === 'actual') {
-            const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
-            const qty = parseFloat(this.findValue(row, ['Delivery Qty', 'delivery_qty', 'Qty', 'qty']) || 0);
-            const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
-            const actualDate = this.convertExcelDate(this.findValue(row, ['Act. Delivery Date', 'act_delivery_date', 'Actual Date', 'actual_date', 'Date', 'date']));
-            const boxCode = this.findValue(row, ['Box Code', 'box_code', 'Box', 'box']);
-            
-            if (!sku || qty === 0) return null;
-            
-            return {
-                sku: sku,
-                qty: qty,
-                supplier: supplier || 'Unknown',
-                actualDate: actualDate || new Date().toISOString().split('T')[0],
-                boxCode: boxCode || ''
-            };
-        }
-    } catch (error) {
-        console.error('❌ Error mapping row:', error);
         return null;
     }
-    return null;
-}
 
-// js/app.js - Replace convertExcelDate method
-
-convertExcelDate(value) {
-    if (!value) return '';
-    
-    // If it's already a string like "3/1/2026", parse it directly
-    if (typeof value === 'string') {
-        // Check if it's a date string
-        const dateRegex = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
-        if (dateRegex.test(value)) {
-            try {
-                const parts = value.split('/');
-                const month = parseInt(parts[0]);
-                const day = parseInt(parts[1]);
-                let year = parseInt(parts[2]);
-                
-                // Handle 2-digit year
-                if (year < 100) {
-                    year = year > 50 ? 1900 + year : 2000 + year;
+    convertExcelDate(value) {
+        if (!value) return '';
+        
+        // If it's already a string like "3/1/2026", parse it directly
+        if (typeof value === 'string') {
+            // Check if it's a date string
+            const dateRegex = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
+            if (dateRegex.test(value)) {
+                try {
+                    const parts = value.split('/');
+                    const month = parseInt(parts[0]);
+                    const day = parseInt(parts[1]);
+                    let year = parseInt(parts[2]);
+                    
+                    // Handle 2-digit year
+                    if (year < 100) {
+                        year = year > 50 ? 1900 + year : 2000 + year;
+                    }
+                    
+                    // Create date WITHOUT timezone conversion
+                    const date = new Date(year, month - 1, day);
+                    
+                    // ✅ FIX: Use local date, not UTC
+                    // Return as YYYY-MM-DD without timezone offset
+                    const yearStr = date.getFullYear();
+                    const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+                    const dayStr = String(date.getDate()).padStart(2, '0');
+                    return `${yearStr}-${monthStr}-${dayStr}`;
+                } catch (e) {
+                    console.warn('⚠️ Could not parse date string:', value);
+                    return value;
                 }
-                
-                // Create date WITHOUT timezone conversion
-                const date = new Date(year, month - 1, day);
-                
-                // ✅ FIX: Use local date, not UTC
-                // Return as YYYY-MM-DD without timezone offset
-                const yearStr = date.getFullYear();
-                const monthStr = String(date.getMonth() + 1).padStart(2, '0');
-                const dayStr = String(date.getDate()).padStart(2, '0');
-                return `${yearStr}-${monthStr}-${dayStr}`;
-            } catch (e) {
-                console.warn('⚠️ Could not parse date string:', value);
-                return value;
+            }
+            return value;
+        }
+        
+        // If it's a number (Excel serial date)
+        if (typeof value === 'number') {
+            // Excel serial date: 1 = Jan 1, 1900
+            // We need to adjust for the Excel 1900 leap year bug
+            const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+            
+            // ✅ FIX: Use local date without timezone conversion
+            const date = new Date(excelEpoch.getTime() + (value * 24 * 60 * 60 * 1000));
+            
+            // Check if date is valid
+            if (isNaN(date.getTime())) {
+                return '';
+            }
+            
+            // ✅ FIX: Return local date, not UTC
+            const yearStr = date.getFullYear();
+            const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(date.getDate()).padStart(2, '0');
+            return `${yearStr}-${monthStr}-${dayStr}`;
+        }
+        
+        // If it's a Date object
+        if (value instanceof Date) {
+            const yearStr = value.getFullYear();
+            const monthStr = String(value.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(value.getDate()).padStart(2, '0');
+            return `${yearStr}-${monthStr}-${dayStr}`;
+        }
+        
+        return value || '';
+    }
+
+    // Helper method to find value by multiple possible keys
+    findValue(row, possibleKeys) {
+        for (const key of possibleKeys) {
+            if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
+                return row[key];
             }
         }
-        return value;
+        return '';
     }
-    
-    // If it's a number (Excel serial date)
-    if (typeof value === 'number') {
-        // Excel serial date: 1 = Jan 1, 1900
-        // We need to adjust for the Excel 1900 leap year bug
-        const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
-        
-        // ✅ FIX: Use local date without timezone conversion
-        const date = new Date(excelEpoch.getTime() + (value * 24 * 60 * 60 * 1000));
-        
-        // Check if date is valid
-        if (isNaN(date.getTime())) {
-            return '';
-        }
-        
-        // ✅ FIX: Return local date, not UTC
-        const yearStr = date.getFullYear();
-        const monthStr = String(date.getMonth() + 1).padStart(2, '0');
-        const dayStr = String(date.getDate()).padStart(2, '0');
-        return `${yearStr}-${monthStr}-${dayStr}`;
-    }
-    
-    // If it's a Date object
-    if (value instanceof Date) {
-        const yearStr = value.getFullYear();
-        const monthStr = String(value.getMonth() + 1).padStart(2, '0');
-        const dayStr = String(value.getDate()).padStart(2, '0');
-        return `${yearStr}-${monthStr}-${dayStr}`;
-    }
-    
-    return value || '';
-}
-
-// Helper method to find value by multiple possible keys (already exists, keep it)
-findValue(row, possibleKeys) {
-    for (const key of possibleKeys) {
-        if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
-            return row[key];
-        }
-    }
-    return '';
-}
-
-// Helper method to find value by multiple possible keys
-findValue(row, possibleKeys) {
-    for (const key of possibleKeys) {
-        if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
-            return row[key];
-        }
-    }
-    return '';
-}
 
     getMockData(type) {
         // Return mock data for testing
@@ -698,116 +673,416 @@ findValue(row, possibleKeys) {
         return mockData;
     }
 
-    // js/app.js - Replace processPendingOrders with FIFO version
-
-processPendingOrders() {
-    console.log('📊 Processing pending orders with FIFO...');
-    
-    // Group orders by SKU and supplier, but keep individual orders
-    const orderGroups = new Map();
-    
-    // Sort orders by date (oldest first)
-    const sortedOrders = [...this.data.orders].sort((a, b) => 
-        new Date(a.orderDate) - new Date(b.orderDate)
-    );
-    
-    // Group orders by SKU and supplier
-    sortedOrders.forEach(order => {
-        const key = `${order.sku}-${order.supplier}`;
-        if (!orderGroups.has(key)) {
-            orderGroups.set(key, {
-                sku: order.sku,
-                supplier: order.supplier,
-                orders: [],
-                totalOrder: 0
-            });
-        }
-        const group = orderGroups.get(key);
-        group.orders.push({ ...order, remaining: order.qty });
-        group.totalOrder += order.qty;
-    });
-    
-    // Aggregate deliveries by SKU and supplier
-    const deliveryMap = new Map();
-    this.data.deliveries.forEach(delivery => {
-        const key = `${delivery.sku}-${delivery.supplier}`;
-        if (!deliveryMap.has(key)) {
-            deliveryMap.set(key, 0);
-        }
-        deliveryMap.set(key, deliveryMap.get(key) + delivery.qty);
-    });
-    
-    // Process each group with FIFO
-    const pending = [];
-    
-    orderGroups.forEach((group, key) => {
-        let totalDelivered = deliveryMap.get(key) || 0;
-        let remainingToDeliver = totalDelivered;
+    processPendingOrders() {
+        console.log('📊 Processing pending orders with FIFO...');
         
-        console.log(`📦 Processing ${group.sku} (${group.supplier}): ${group.totalOrder} ordered, ${totalDelivered} delivered`);
+        // Group orders by SKU and supplier, but keep individual orders
+        const orderGroups = new Map();
         
-        // Track which orders got delivered
-        const orderStatus = [];
-        let deliveredCount = 0;
+        // Sort orders by date (oldest first)
+        const sortedOrders = [...this.data.orders].sort((a, b) => 
+            new Date(a.orderDate) - new Date(b.orderDate)
+        );
         
-        // FIFO: Deduct from oldest orders first
-        for (const order of group.orders) {
-            let orderRemaining = order.qty;
-            
-            if (remainingToDeliver > 0) {
-                const deducted = Math.min(orderRemaining, remainingToDeliver);
-                orderRemaining -= deducted;
-                remainingToDeliver -= deducted;
-                deliveredCount += deducted;
-                
-                orderStatus.push({
-                    orderCode: order.orderCode || '',
-                    orderDate: order.orderDate,
-                    qty: order.qty,
-                    delivered: deducted,
-                    remaining: orderRemaining,
-                    status: orderRemaining === 0 ? 'completed' : 'partial'
-                });
-            } else {
-                orderStatus.push({
-                    orderCode: order.orderCode || '',
-                    orderDate: order.orderDate,
-                    qty: order.qty,
-                    delivered: 0,
-                    remaining: order.qty,
-                    status: 'pending'
+        // Group orders by SKU and supplier
+        sortedOrders.forEach(order => {
+            const key = `${order.sku}-${order.supplier}`;
+            if (!orderGroups.has(key)) {
+                orderGroups.set(key, {
+                    sku: order.sku,
+                    supplier: order.supplier,
+                    orders: [],
+                    totalOrder: 0
                 });
             }
-        }
+            const group = orderGroups.get(key);
+            group.orders.push({ ...order, remaining: order.qty });
+            group.totalOrder += order.qty;
+        });
         
-        const remaining = group.totalOrder - totalDelivered;
+        // Aggregate deliveries by SKU and supplier
+        const deliveryMap = new Map();
+        this.data.deliveries.forEach(delivery => {
+            const key = `${delivery.sku}-${delivery.supplier}`;
+            if (!deliveryMap.has(key)) {
+                deliveryMap.set(key, 0);
+            }
+            deliveryMap.set(key, deliveryMap.get(key) + delivery.qty);
+        });
         
-        // Only show if there's activity (some delivered or pending)
-        if (totalDelivered > 0 || remaining > 0) {
-            pending.push({
-                sku: group.sku,
-                supplier: group.supplier,
-                totalOrder: group.totalOrder,
-                delivered: totalDelivered,
-                remaining: Math.max(0, remaining),
-                status: remaining === 0 ? 'completed' : totalDelivered > 0 ? 'partial' : 'pending',
-                orderDate: group.orders[0]?.orderDate || new Date().toISOString().split('T')[0],
-                orderCode: group.orders[0]?.orderCode || '',
-                note: '',
-                // FIFO details for detailed view
-                orderStatus: orderStatus
-            });
-        }
-    });
-    
-    // Sort pending orders by date (oldest first)
-    pending.sort((a, b) => new Date(a.orderDate) - new Date(b.orderDate));
-    
-    this.data.pending = pending;
-    console.log(`✅ Processed ${pending.length} pending groups with FIFO`);
-}
+        // Process each group with FIFO
+        const pending = [];
+        
+        orderGroups.forEach((group, key) => {
+            let totalDelivered = deliveryMap.get(key) || 0;
+            let remainingToDeliver = totalDelivered;
+            
+            console.log(`📦 Processing ${group.sku} (${group.supplier}): ${group.totalOrder} ordered, ${totalDelivered} delivered`);
+            
+            // Track which orders got delivered
+            const orderStatus = [];
+            let deliveredCount = 0;
+            
+            // FIFO: Deduct from oldest orders first
+            for (const order of group.orders) {
+                let orderRemaining = order.qty;
+                
+                if (remainingToDeliver > 0) {
+                    const deducted = Math.min(orderRemaining, remainingToDeliver);
+                    orderRemaining -= deducted;
+                    remainingToDeliver -= deducted;
+                    deliveredCount += deducted;
+                    
+                    orderStatus.push({
+                        orderCode: order.orderCode || '',
+                        orderDate: order.orderDate,
+                        qty: order.qty,
+                        delivered: deducted,
+                        remaining: orderRemaining,
+                        status: orderRemaining === 0 ? 'completed' : 'partial'
+                    });
+                } else {
+                    orderStatus.push({
+                        orderCode: order.orderCode || '',
+                        orderDate: order.orderDate,
+                        qty: order.qty,
+                        delivered: 0,
+                        remaining: order.qty,
+                        status: 'pending'
+                    });
+                }
+            }
+            
+            const remaining = group.totalOrder - totalDelivered;
+            
+            // Only show if there's activity (some delivered or pending)
+            if (totalDelivered > 0 || remaining > 0) {
+                pending.push({
+                    sku: group.sku,
+                    supplier: group.supplier,
+                    totalOrder: group.totalOrder,
+                    delivered: totalDelivered,
+                    remaining: Math.max(0, remaining),
+                    status: remaining === 0 ? 'completed' : totalDelivered > 0 ? 'partial' : 'pending',
+                    orderDate: group.orders[0]?.orderDate || new Date().toISOString().split('T')[0],
+                    orderCode: group.orders[0]?.orderCode || '',
+                    note: '',
+                    // FIFO details for detailed view
+                    orderStatus: orderStatus
+                });
+            }
+        });
+        
+        // Sort pending orders by date (oldest first)
+        pending.sort((a, b) => new Date(a.orderDate) - new Date(b.orderDate));
+        
+        this.data.pending = pending;
+        console.log(`✅ Processed ${pending.length} pending groups with FIFO`);
+    }
 
-    // ============ NEW FEATURES ============
+    // ============ NEW MISMATCH DETECTION FEATURES ============
+
+    // Find Quantity Mismatches (Over-Deliveries)
+    findQuantityMismatches() {
+        const mismatches = [];
+        
+        // Group orders by SKU and supplier
+        const orderMap = new Map();
+        this.data.orders.forEach(order => {
+            const key = `${order.sku}-${order.supplier}`;
+            if (!orderMap.has(key)) {
+                orderMap.set(key, { sku: order.sku, supplier: order.supplier, totalOrder: 0 });
+            }
+            orderMap.get(key).totalOrder += order.qty;
+        });
+        
+        // Group deliveries by SKU and supplier
+        const deliveryMap = new Map();
+        this.data.deliveries.forEach(delivery => {
+            const key = `${delivery.sku}-${delivery.supplier}`;
+            if (!deliveryMap.has(key)) {
+                deliveryMap.set(key, { sku: delivery.sku, supplier: delivery.supplier, totalDelivery: 0 });
+            }
+            deliveryMap.get(key).totalDelivery += delivery.qty;
+        });
+        
+        // Check for quantity mismatches
+        deliveryMap.forEach((delivery, key) => {
+            const order = orderMap.get(key);
+            if (order) {
+                const difference = delivery.totalDelivery - order.totalOrder;
+                if (difference > 0) {
+                    // Over-delivery detected
+                    mismatches.push({
+                        sku: delivery.sku,
+                        supplier: delivery.supplier,
+                        ordered: order.totalOrder,
+                        delivered: delivery.totalDelivery,
+                        excess: difference,
+                        type: 'over-delivery',
+                        severity: 'high'
+                    });
+                } else if (difference < 0) {
+                    // Under-delivery detected
+                    mismatches.push({
+                        sku: delivery.sku,
+                        supplier: delivery.supplier,
+                        ordered: order.totalOrder,
+                        delivered: delivery.totalDelivery,
+                        shortage: Math.abs(difference),
+                        type: 'under-delivery',
+                        severity: 'medium'
+                    });
+                }
+            } else {
+                // Delivery with no matching order
+                mismatches.push({
+                    sku: delivery.sku,
+                    supplier: delivery.supplier,
+                    ordered: 0,
+                    delivered: delivery.totalDelivery,
+                    excess: delivery.totalDelivery,
+                    type: 'no-order',
+                    severity: 'high'
+                });
+            }
+        });
+        
+        // Check for orders with no deliveries
+        orderMap.forEach((order, key) => {
+            const delivery = deliveryMap.get(key);
+            if (!delivery) {
+                mismatches.push({
+                    sku: order.sku,
+                    supplier: order.supplier,
+                    ordered: order.totalOrder,
+                    delivered: 0,
+                    shortage: order.totalOrder,
+                    type: 'no-delivery',
+                    severity: 'medium'
+                });
+            }
+        });
+        
+        return mismatches;
+    }
+
+    // Render detailed mismatch view
+    renderMismatchDetails() {
+        const skuMismatches = this.findSKUsNotInOrder();
+        const quantityMismatches = this.findQuantityMismatches();
+        const totalIssues = skuMismatches.length + quantityMismatches.length;
+        
+        if (totalIssues === 0) {
+            this.showNotification('✅ All SKUs and quantities match!', 'success');
+            return;
+        }
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+                <div class="modal-header">
+                    <h2>📋 Mismatch Details</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    ${quantityMismatches.length > 0 ? `
+                        <h3 style="color: #EF4444; margin-top: 16px;">
+                            <i class="fas fa-calculator"></i> Quantity Mismatches (${quantityMismatches.length})
+                        </h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>SKU</th>
+                                        <th>Supplier</th>
+                                        <th>Ordered</th>
+                                        <th>Delivered</th>
+                                        <th>Difference</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${quantityMismatches.map(m => {
+                                        let badgeClass = 'status-mismatch';
+                                        let badgeText = 'Mismatch';
+                                        if (m.type === 'over-delivery') {
+                                            badgeClass = 'status-over-delivery';
+                                            badgeText = `⚠️ +${m.excess} Over`;
+                                        } else if (m.type === 'under-delivery') {
+                                            badgeClass = 'status-warning';
+                                            badgeText = `⚠️ -${m.shortage} Short`;
+                                        } else if (m.type === 'no-order') {
+                                            badgeClass = 'status-error';
+                                            badgeText = 'No Order';
+                                        } else if (m.type === 'no-delivery') {
+                                            badgeClass = 'status-pending';
+                                            badgeText = 'No Delivery';
+                                        }
+                                        return `
+                                            <tr>
+                                                <td><strong>${m.sku}</strong></td>
+                                                <td>${m.supplier}</td>
+                                                <td>${m.ordered || 0}</td>
+                                                <td>${m.delivered || 0}</td>
+                                                <td style="color: ${m.excess ? '#EF4444' : '#F59E0B'}; font-weight: 600;">
+                                                    ${m.excess ? `+${m.excess}` : m.shortage ? `-${m.shortage}` : '0'}
+                                                </td>
+                                                <td><span class="status-badge ${badgeClass}">${badgeText}</span></td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="margin: 12px 0; padding: 12px; background: #FEF2F2; border-radius: 8px; border-left: 4px solid #EF4444;">
+                            <p style="margin: 0; font-size: 14px; color: #991B1B;">
+                                <strong>⚠️ Note:</strong> ${quantityMismatches.filter(m => m.type === 'over-delivery').length} over-delivery(s) detected. 
+                                Review these items to reconcile quantities.
+                            </p>
+                        </div>
+                    ` : ''}
+                    
+                    ${skuMismatches.length > 0 ? `
+                        <h3 style="color: #F59E0B; margin-top: 16px;">
+                            <i class="fas fa-tag"></i> SKU Mismatches (${skuMismatches.length})
+                        </h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>SKU</th>
+                                        <th>Supplier</th>
+                                        <th>Qty</th>
+                                        <th>Source</th>
+                                        <th>Box Code</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${skuMismatches.map(item => `
+                                        <tr>
+                                            <td><strong>${item.sku}</strong></td>
+                                            <td>${item.supplier}</td>
+                                            <td>${item.qty}</td>
+                                            <td><span class="status-badge status-mismatch">${item.source}</span></td>
+                                            <td>${item.boxCode || '-'}</td>
+                                            <td>
+                                                <button class="btn-secondary" onclick="window.app.flagSKUCorrection()" style="padding: 4px 12px; font-size: 12px;">
+                                                    Fix
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="flag-actions" style="margin-top: 20px; padding: 16px; background: #F3F4F6; border-radius: 8px;">
+                        <p style="font-weight: 600; margin-bottom: 12px;">What would you like to do?</p>
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                            <button class="btn-primary" onclick="window.app.flagSKUCorrection()">
+                                <i class="fas fa-edit"></i> Correct SKU
+                            </button>
+                            <button class="btn-secondary" onclick="window.app.flagAddNewOrder()">
+                                <i class="fas fa-plus"></i> Create Order
+                            </button>
+                            <button class="btn-secondary" onclick="window.app.exportMismatches()">
+                                <i class="fas fa-file-export"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" onclick="this.closest('.modal').remove()">Close</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    }
+
+    // Enhanced Mismatch Checker for Dashboard
+    addMismatchChecker() {
+        const dashboard = document.getElementById('view-dashboard');
+        const existingChecker = document.querySelector('.mismatch-checker');
+        if (existingChecker) {
+            existingChecker.remove();
+        }
+        
+        // Get both SKU and Quantity mismatches
+        const skuMismatches = this.findSKUsNotInOrder();
+        const quantityMismatches = this.findQuantityMismatches();
+        const hasOverDelivery = quantityMismatches.some(m => m.type === 'over-delivery' || m.type === 'no-order');
+        const totalIssues = skuMismatches.length + quantityMismatches.length;
+        
+        const container = document.createElement('div');
+        container.className = 'mismatch-checker';
+        container.style.cssText = `
+            margin: 20px 0;
+            padding: 16px 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            border-left: 4px solid ${totalIssues > 0 ? '#EF4444' : '#10B981'};
+        `;
+        
+        container.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fas fa-exclamation-triangle" style="color: ${totalIssues > 0 ? '#EF4444' : '#10B981'}; font-size: 24px;"></i>
+                    <div>
+                        <h4 style="font-weight: 600; margin: 0;">Mismatch Checker</h4>
+                        <p style="margin: 0; color: var(--gray-500); font-size: 14px;">
+                            ${totalIssues === 0 ? '✅ All SKUs and quantities match!' : `⚠️ ${totalIssues} issue(s) found`}
+                        </p>
+                    </div>
+                </div>
+                ${totalIssues > 0 ? `
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        ${hasOverDelivery ? '<span class="status-badge status-over-delivery">⚠️ Over-Delivery</span>' : ''}
+                        ${skuMismatches.length > 0 ? `<span class="status-badge status-mismatch">🔄 ${skuMismatches.length} SKU Mismatch</span>` : ''}
+                        ${quantityMismatches.filter(m => m.type !== 'over-delivery').length > 0 ? `<span class="status-badge status-partial">📊 Quantity Issues</span>` : ''}
+                    </div>
+                ` : ''}
+            </div>
+            ${totalIssues > 0 ? `
+                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                    <button class="btn-primary" id="checkMismatches">
+                        <i class="fas fa-search"></i> View Details
+                    </button>
+                </div>
+            ` : `
+                <div style="margin-top: 8px;">
+                    <button class="btn-secondary" id="checkMismatches">
+                        <i class="fas fa-check"></i> Check Again
+                    </button>
+                </div>
+            `}
+        `;
+        
+        // Insert after stats grid
+        const statsGrid = dashboard.querySelector('.stats-grid');
+        if (statsGrid) {
+            statsGrid.parentNode.insertBefore(container, statsGrid.nextSibling);
+        } else {
+            dashboard.prepend(container);
+        }
+        
+        document.getElementById('checkMismatches')?.addEventListener('click', () => {
+            this.renderMismatchDetails();
+        });
+    }
+
+    // ============ END OF NEW MISMATCH FEATURES ============
+
+    // ============ EXISTING FEATURES ============
 
     // Feature 1: Export Pending Orders with Details
     exportPendingOrders(format = 'csv') {
@@ -1259,7 +1534,7 @@ processPendingOrders() {
                     <i class="fas fa-filter"></i> Export by Supplier
                 </button>
                 <button class="btn-secondary" id="checkMismatchesBtn">
-                    <i class="fas fa-exclamation-triangle"></i> Check SKU Mismatches
+                    <i class="fas fa-exclamation-triangle"></i> Check Mismatches
                 </button>
             </div>
             <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
@@ -1302,7 +1577,7 @@ processPendingOrders() {
         });
         
         document.getElementById('checkMismatchesBtn')?.addEventListener('click', () => {
-            this.renderFlaggedSKUs();
+            this.renderMismatchDetails();
         });
     }
 
@@ -1325,58 +1600,6 @@ processPendingOrders() {
         
         this.exportToCSV(data, `${supplier}_orders`);
         this.showNotification(`✅ Exported ${data.length} records for ${supplier}`, 'success');
-    }
-
-    // Feature 5: Add mismatch checker button to dashboard
-    addMismatchChecker() {
-        const dashboard = document.getElementById('view-dashboard');
-        const existingChecker = document.querySelector('.mismatch-checker');
-        if (existingChecker) {
-            existingChecker.remove();
-        }
-        
-        const container = document.createElement('div');
-        container.className = 'mismatch-checker';
-        container.style.cssText = `
-            margin: 20px 0;
-            padding: 16px 20px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 12px;
-        `;
-        
-        const mismatchCount = this.findSKUsNotInOrder().length;
-        
-        container.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <i class="fas fa-exclamation-triangle" style="color: ${mismatchCount > 0 ? '#F59E0B' : '#10B981'}; font-size: 24px;"></i>
-                <div>
-                    <h4 style="font-weight: 600; margin: 0;">SKU Mismatch Checker</h4>
-                    <p style="margin: 0; color: var(--gray-500); font-size: 14px;">
-                        ${mismatchCount === 0 ? '✅ All SKUs match! No mismatches found.' : `⚠️ ${mismatchCount} SKU(s) found in deliveries not in orders`}
-                    </p>
-                </div>
-            </div>
-            <button class="btn-${mismatchCount > 0 ? 'primary' : 'secondary'}" id="checkMismatches">
-                <i class="fas fa-search"></i> ${mismatchCount > 0 ? 'View Mismatches' : 'Check SKUs'}
-            </button>
-        `;
-        
-        const statsGrid = dashboard.querySelector('.stats-grid');
-        if (statsGrid) {
-            statsGrid.parentNode.insertBefore(container, statsGrid.nextSibling);
-        } else {
-            dashboard.prepend(container);
-        }
-        
-        document.getElementById('checkMismatches')?.addEventListener('click', () => {
-            this.renderFlaggedSKUs();
-        });
     }
 
     // ============ END OF NEW FEATURES ============
@@ -1479,49 +1702,47 @@ processPendingOrders() {
         `).join('');
     }
 
-    // js/app.js - Update renderPending to show FIFO details
-
-renderPending() {
-    const tbody = document.getElementById('pendingBody');
-    
-    if (this.data.pending.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No pending orders</td></tr>`;
-        return;
-    }
-    
-    tbody.innerHTML = this.data.pending.map(pending => {
-        // Build FIFO breakdown
-        let fifoBreakdown = '';
-        if (pending.orderStatus && pending.orderStatus.length > 0) {
-            fifoBreakdown = pending.orderStatus.map(os => 
-                `<div style="font-size: 11px; color: #666;">
-                    ${os.orderDate}: ${os.delivered}/${os.qty} delivered
-                    ${os.remaining > 0 ? `(Remaining: ${os.remaining})` : '✅'}
-                </div>`
-            ).join('');
+    renderPending() {
+        const tbody = document.getElementById('pendingBody');
+        
+        if (this.data.pending.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No pending orders</td></tr>`;
+            return;
         }
         
-        return `
-            <tr>
-                <td><strong>${pending.sku}</strong></td>
-                <td>${pending.totalOrder}</td>
-                <td>${pending.delivered}</td>
-                <td>${pending.remaining}</td>
-                <td>${pending.supplier}</td>
-                <td>${this.formatDate(pending.orderDate)}</td>
-                <td><span class="status-badge status-${pending.status}">${pending.status}</span></td>
-            </tr>
-            ${fifoBreakdown ? `<tr><td colspan="7" style="padding: 4px 16px; background: #f9fafb;">
-                <details>
-                    <summary style="cursor: pointer; font-size: 12px; color: #6B7280;">
-                        📋 FIFO Breakdown
-                    </summary>
-                    <div style="margin-top: 4px;">${fifoBreakdown}</div>
-                </details>
-            </td></tr>` : ''}
-        `;
-    }).join('');
-}
+        tbody.innerHTML = this.data.pending.map(pending => {
+            // Build FIFO breakdown
+            let fifoBreakdown = '';
+            if (pending.orderStatus && pending.orderStatus.length > 0) {
+                fifoBreakdown = pending.orderStatus.map(os => 
+                    `<div style="font-size: 11px; color: #666;">
+                        ${os.orderDate}: ${os.delivered}/${os.qty} delivered
+                        ${os.remaining > 0 ? `(Remaining: ${os.remaining})` : '✅'}
+                    </div>`
+                ).join('');
+            }
+            
+            return `
+                <tr>
+                    <td><strong>${pending.sku}</strong></td>
+                    <td>${pending.totalOrder}</td>
+                    <td>${pending.delivered}</td>
+                    <td>${pending.remaining}</td>
+                    <td>${pending.supplier}</td>
+                    <td>${this.formatDate(pending.orderDate)}</td>
+                    <td><span class="status-badge status-${pending.status}">${pending.status}</span></td>
+                </tr>
+                ${fifoBreakdown ? `<tr><td colspan="7" style="padding: 4px 16px; background: #f9fafb;">
+                    <details>
+                        <summary style="cursor: pointer; font-size: 12px; color: #6B7280;">
+                            📋 FIFO Breakdown
+                        </summary>
+                        <div style="margin-top: 4px;">${fifoBreakdown}</div>
+                    </details>
+                </td></tr>` : ''}
+            `;
+        }).join('');
+    }
 
     renderAnalysis() {
         const type = document.getElementById('analysisType').value;
