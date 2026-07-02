@@ -4,6 +4,77 @@ import { CONFIG } from './config.js';
 import { driveManager } from './gdrive.js';
 import * as XLSX from 'xlsx';
 
+// ============ PAGINATION CLASS ============
+
+class Pagination {
+    constructor(items, pageSize = 10) {
+        this.items = items || [];
+        this.pageSize = pageSize;
+        this.currentPage = 1;
+        this.totalPages = Math.ceil(this.items.length / this.pageSize) || 1;
+    }
+
+    getCurrentPageItems() {
+        const start = (this.currentPage - 1) * this.pageSize;
+        const end = start + this.pageSize;
+        return this.items.slice(start, end);
+    }
+
+    getStartIndex() {
+        return (this.currentPage - 1) * this.pageSize + 1;
+    }
+
+    getEndIndex() {
+        const end = this.currentPage * this.pageSize;
+        return Math.min(end, this.items.length);
+    }
+
+    getTotal() {
+        return this.items.length;
+    }
+
+    hasNext() {
+        return this.currentPage < this.totalPages;
+    }
+
+    hasPrev() {
+        return this.currentPage > 1;
+    }
+
+    next() {
+        if (this.hasNext()) {
+            this.currentPage++;
+            return true;
+        }
+        return false;
+    }
+
+    prev() {
+        if (this.hasPrev()) {
+            this.currentPage--;
+            return true;
+        }
+        return false;
+    }
+
+    getPageInfo() {
+        return `Page ${this.currentPage} of ${this.totalPages}`;
+    }
+
+    updateItems(items) {
+        this.items = items || [];
+        this.totalPages = Math.ceil(this.items.length / this.pageSize) || 1;
+        if (this.currentPage > this.totalPages) {
+            this.currentPage = this.totalPages;
+        }
+        if (this.currentPage < 1) {
+            this.currentPage = 1;
+        }
+    }
+}
+
+// ============ MAIN APP CLASS ============
+
 class OrderManagementApp {
     constructor() {
         this.data = {
@@ -24,30 +95,32 @@ class OrderManagementApp {
         this._activityOffset = 0;
         this._activities = [];
         
+        // Pagination objects
+        this._ordersPagination = null;
+        this._deliveriesPagination = null;
+        this._actualPagination = null;
+        this._pendingPagination = null;
+        
         this.init();
     }
 
     async init() {
         console.log('🔧 App initializing...');
         
-        // Setup event listeners FIRST (before authentication)
         console.log('🔧 Setting up event listeners...');
         this.setupEventListeners();
         console.log('✅ Event listeners attached');
         
-        // Initialize Google Drive
         try {
             console.log('🔧 Initializing Google Drive...');
             await driveManager.init();
             console.log('✅ Google Drive initialized successfully');
             
-            // Try to authenticate - this will trigger the popup
             try {
                 console.log('🔧 Attempting to authenticate...');
                 await driveManager.authenticate();
                 console.log('✅ Authenticated successfully');
                 
-                // Load data after successful authentication
                 await this.loadData();
                 console.log('✅ Data loaded successfully');
                 
@@ -60,17 +133,14 @@ class OrderManagementApp {
             this.showNotification('Failed to initialize Google Drive. Please check your configuration.', 'error');
         }
         
-        // Render initial view (even if not authenticated yet)
         this.renderDashboard();
         this.renderOrders();
         this.renderDeliveries();
         this.renderActual();
         this.renderPending();
         
-        // Update supplier filters
         this.updateSupplierFilters();
         
-        // Add new features
         this.addMismatchChecker();
         this.addBossExport();
         this.addSignInButton();
@@ -78,7 +148,8 @@ class OrderManagementApp {
         console.log('✅ App initialized successfully');
     }
 
-    // Add Sign-In Button to Dashboard
+    // ============ ADD SIGN-IN BUTTON ============
+
     addSignInButton() {
         const dashboard = document.getElementById('view-dashboard');
         const existingSignIn = document.querySelector('.sign-in-button');
@@ -128,6 +199,8 @@ class OrderManagementApp {
         });
     }
 
+    // ============ SETUP EVENT LISTENERS ============
+
     setupEventListeners() {
         // Navigation
         document.querySelectorAll('.nav-item').forEach(item => {
@@ -176,6 +249,62 @@ class OrderManagementApp {
             const offset = this._activityOffset || 10;
             this.updateActivity(10, offset);
         });
+
+        // ============ PAGINATION EVENT LISTENERS ============
+
+        // Orders Pagination
+        document.getElementById('ordersPrev')?.addEventListener('click', () => {
+            if (this._ordersPagination?.prev()) {
+                this.renderOrders(this._ordersPagination.currentPage);
+            }
+        });
+
+        document.getElementById('ordersNext')?.addEventListener('click', () => {
+            if (this._ordersPagination?.next()) {
+                this.renderOrders(this._ordersPagination.currentPage);
+            }
+        });
+
+        // Deliveries Pagination
+        document.getElementById('deliveriesPrev')?.addEventListener('click', () => {
+            if (this._deliveriesPagination?.prev()) {
+                this.renderDeliveries(this._deliveriesPagination.currentPage);
+            }
+        });
+
+        document.getElementById('deliveriesNext')?.addEventListener('click', () => {
+            if (this._deliveriesPagination?.next()) {
+                this.renderDeliveries(this._deliveriesPagination.currentPage);
+            }
+        });
+
+        // Actual Received Pagination
+        document.getElementById('actualPrev')?.addEventListener('click', () => {
+            if (this._actualPagination?.prev()) {
+                this.renderActual(this._actualPagination.currentPage);
+            }
+        });
+
+        document.getElementById('actualNext')?.addEventListener('click', () => {
+            if (this._actualPagination?.next()) {
+                this.renderActual(this._actualPagination.currentPage);
+            }
+        });
+
+        // Pending Orders Pagination
+        document.getElementById('pendingPrev')?.addEventListener('click', () => {
+            if (this._pendingPagination?.prev()) {
+                this.renderPending(this._pendingPagination.currentPage);
+            }
+        });
+
+        document.getElementById('pendingNext')?.addEventListener('click', () => {
+            if (this._pendingPagination?.next()) {
+                this.renderPending(this._pendingPagination.currentPage);
+            }
+        });
+
+        // ============ END PAGINATION EVENT LISTENERS ============
 
         // Close modals
         document.querySelectorAll('.close-modal').forEach(btn => {
@@ -255,6 +384,8 @@ class OrderManagementApp {
         this.setupDropZones();
     }
 
+    // ============ LOAD DATA ============
+
     async loadData() {
         try {
             this.showLoading(true);
@@ -300,6 +431,24 @@ class OrderManagementApp {
             this.renderSupplierKPIs();
             this.updateSupplierKPIFilter();
             
+            // Update pagination with new data
+            if (this._ordersPagination) {
+                this._ordersPagination.updateItems(this.data.orders);
+                this.renderOrders(1);
+            }
+            if (this._deliveriesPagination) {
+                this._deliveriesPagination.updateItems(this.data.deliveries);
+                this.renderDeliveries(1);
+            }
+            if (this._actualPagination) {
+                this._actualPagination.updateItems(this.data.actual);
+                this.renderActual(1);
+            }
+            if (this._pendingPagination) {
+                this._pendingPagination.updateItems(this.data.pending);
+                this.renderPending(1);
+            }
+            
             console.log('✅ Data loaded successfully');
             
         } catch (error) {
@@ -308,6 +457,8 @@ class OrderManagementApp {
             this.showLoading(false);
         }
     }
+
+    // ============ PROCESS EXCEL FILES ============
 
     async processExcelFiles(files, type) {
         const data = [];
@@ -351,6 +502,8 @@ class OrderManagementApp {
         
         return data;
     }
+
+    // ============ PARSE EXCEL DATA ============
 
     async parseExcelData(content, type) {
         console.log(`📝 Parsing ${type} data - content length: ${content?.length || 0}`);
@@ -789,7 +942,6 @@ class OrderManagementApp {
         
         const fulfillmentRate = totalQty > 0 ? Math.round((fulfilledQty / totalQty) * 100) : 0;
         
-        // Update new dashboard elements
         const totalOrdersQtyEl = document.getElementById('totalOrdersQty');
         const totalOrdersRecordsEl = document.getElementById('totalOrdersRecords');
         const fulfillmentRateEl = document.getElementById('fulfillmentRate');
@@ -806,7 +958,6 @@ class OrderManagementApp {
         if (pendingOrdersRecordsEl) pendingOrdersRecordsEl.textContent = `(${pendingRecords} records)`;
         if (excessDeliveredEl) excessDeliveredEl.textContent = excessQty.toLocaleString();
         
-        // Also update old stat cards for backward compatibility
         const totalOrdersEl = document.getElementById('totalOrders');
         const completedOrdersEl = document.getElementById('completedOrders');
         const pendingOrdersEl = document.getElementById('pendingOrders');
@@ -852,7 +1003,6 @@ class OrderManagementApp {
             });
         });
         
-        // Sort by date (newest first)
         activities.sort((a, b) => b.timestamp - a.timestamp);
         
         const total = activities.length;
@@ -1229,12 +1379,10 @@ class OrderManagementApp {
         const existingChecker = document.getElementById('mismatchCheckerContainer');
         if (!dashboard) return;
         
-        // Check if container exists, create if not
         let container = document.getElementById('mismatchCheckerContainer');
         if (!container) {
             container = document.createElement('div');
             container.id = 'mismatchCheckerContainer';
-            // Insert after supplier kpi section
             const supplierSection = document.querySelector('.supplier-kpi-section');
             if (supplierSection) {
                 supplierSection.parentNode.insertBefore(container, supplierSection.nextSibling);
@@ -2012,7 +2160,6 @@ class OrderManagementApp {
             </div>
         `;
         
-        // Re-attach event listener for analysis type dropdown
         document.getElementById('analysisType')?.addEventListener('change', () => {
             this.renderAnalysis();
         });
@@ -2079,7 +2226,7 @@ class OrderManagementApp {
     renderFilteredOrders(orders) {
         const tbody = document.getElementById('ordersBody');
         if (orders.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders match the filters</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders match the filters</td></tr>`;
             return;
         }
         tbody.innerHTML = orders.map(order => `
@@ -2090,7 +2237,6 @@ class OrderManagementApp {
                 <td>${this.formatDate(order.orderDate)}</td>
                 <td>${order.orderCode}</td>
                 <td><span class="status-badge status-pending">Pending</span></td>
-                <td>${order.qty}</td>
             </tr>
         `).join('');
     }
@@ -2098,7 +2244,7 @@ class OrderManagementApp {
     renderFilteredDeliveries(deliveries) {
         const tbody = document.getElementById('deliveriesBody');
         if (deliveries.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries match the filters</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries match the filters</td></tr>`;
             return;
         }
         tbody.innerHTML = deliveries.map(delivery => `
@@ -2108,7 +2254,6 @@ class OrderManagementApp {
                 <td>${delivery.supplier}</td>
                 <td>${this.formatDate(delivery.deliveryDate)}</td>
                 <td>${delivery.boxCode || '-'}</td>
-                <td><span class="status-badge status-partial">In Transit</span></td>
             </tr>
         `).join('');
     }
@@ -2116,7 +2261,7 @@ class OrderManagementApp {
     renderFilteredActual(actual) {
         const tbody = document.getElementById('actualBody');
         if (actual.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items match the filters</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items match the filters</td></tr>`;
             return;
         }
         tbody.innerHTML = actual.map(item => `
@@ -2126,7 +2271,6 @@ class OrderManagementApp {
                 <td>${item.supplier}</td>
                 <td>${this.formatDate(item.actualDate)}</td>
                 <td>${item.boxCode || '-'}</td>
-                <td><span class="status-badge status-completed">Received</span></td>
             </tr>
         `).join('');
     }
@@ -2187,80 +2331,148 @@ class OrderManagementApp {
         document.getElementById('filterStatus').value = '';
         
         document.getElementById('filterModal').classList.remove('active');
-        this.renderOrders();
-        this.renderDeliveries();
-        this.renderActual();
-        this.renderPending();
+        this.renderOrders(1);
+        this.renderDeliveries(1);
+        this.renderActual(1);
+        this.renderPending(1);
         this.showNotification('Filters cleared!', 'info');
     }
 
-    // ============ RENDER METHODS ============
+    // ============ RENDER METHODS WITH PAGINATION ============
 
-    // js/app.js - Replace renderOrders method
-
-renderOrders() {
-    const tbody = document.getElementById('ordersBody');
-    if (this.data.orders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders found</td></tr>`;
-        return;
+    renderOrders(page = 1) {
+        const tbody = document.getElementById('ordersBody');
+        const paginationContainer = document.getElementById('ordersPagination');
+        
+        if (!this._ordersPagination) {
+            this._ordersPagination = new Pagination(this.data.orders, 10);
+        } else {
+            this._ordersPagination.updateItems(this.data.orders);
+        }
+        this._ordersPagination.currentPage = page;
+        
+        const pageItems = this._ordersPagination.getCurrentPageItems();
+        
+        if (pageItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders found</td></tr>`;
+            paginationContainer.style.display = 'none';
+            return;
+        }
+        
+        tbody.innerHTML = pageItems.map(order => `
+            <tr>
+                <td><strong>${order.sku}</strong></td>
+                <td>${order.qty}</td>
+                <td>${order.supplier}</td>
+                <td>${this.formatDate(order.orderDate)}</td>
+                <td>${order.orderCode}</td>
+                <td><span class="status-badge status-pending">Pending</span></td>
+            </tr>
+        `).join('');
+        
+        document.getElementById('ordersStart').textContent = this._ordersPagination.getStartIndex();
+        document.getElementById('ordersEnd').textContent = this._ordersPagination.getEndIndex();
+        document.getElementById('ordersTotal').textContent = this._ordersPagination.getTotal();
+        document.getElementById('ordersPageInfo').textContent = this._ordersPagination.getPageInfo();
+        document.getElementById('ordersPrev').disabled = !this._ordersPagination.hasPrev();
+        document.getElementById('ordersNext').disabled = !this._ordersPagination.hasNext();
+        paginationContainer.style.display = 'flex';
     }
-    tbody.innerHTML = this.data.orders.map(order => `
-        <tr>
-            <td><strong>${order.sku}</strong></td>
-            <td>${order.qty}</td>
-            <td>${order.supplier}</td>
-            <td>${this.formatDate(order.orderDate)}</td>
-            <td>${order.orderCode}</td>
-            <td><span class="status-badge status-pending">Pending</span></td>
-        </tr>
-    `).join('');
-}
 
-// js/app.js - Replace renderDeliveries method
-
-renderDeliveries() {
-    const tbody = document.getElementById('deliveriesBody');
-    if (this.data.deliveries.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries found</td></tr>`;
-        return;
+    renderDeliveries(page = 1) {
+        const tbody = document.getElementById('deliveriesBody');
+        const paginationContainer = document.getElementById('deliveriesPagination');
+        
+        if (!this._deliveriesPagination) {
+            this._deliveriesPagination = new Pagination(this.data.deliveries, 10);
+        } else {
+            this._deliveriesPagination.updateItems(this.data.deliveries);
+        }
+        this._deliveriesPagination.currentPage = page;
+        
+        const pageItems = this._deliveriesPagination.getCurrentPageItems();
+        
+        if (pageItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries found</td></tr>`;
+            paginationContainer.style.display = 'none';
+            return;
+        }
+        
+        tbody.innerHTML = pageItems.map(delivery => `
+            <tr>
+                <td><strong>${delivery.sku}</strong></td>
+                <td>${delivery.qty}</td>
+                <td>${delivery.supplier}</td>
+                <td>${this.formatDate(delivery.deliveryDate)}</td>
+                <td>${delivery.boxCode || '-'}</td>
+            </tr>
+        `).join('');
+        
+        document.getElementById('deliveriesStart').textContent = this._deliveriesPagination.getStartIndex();
+        document.getElementById('deliveriesEnd').textContent = this._deliveriesPagination.getEndIndex();
+        document.getElementById('deliveriesTotal').textContent = this._deliveriesPagination.getTotal();
+        document.getElementById('deliveriesPageInfo').textContent = this._deliveriesPagination.getPageInfo();
+        document.getElementById('deliveriesPrev').disabled = !this._deliveriesPagination.hasPrev();
+        document.getElementById('deliveriesNext').disabled = !this._deliveriesPagination.hasNext();
+        paginationContainer.style.display = 'flex';
     }
-    tbody.innerHTML = this.data.deliveries.map(delivery => `
-        <tr>
-            <td><strong>${delivery.sku}</strong></td>
-            <td>${delivery.qty}</td>
-            <td>${delivery.supplier}</td>
-            <td>${this.formatDate(delivery.deliveryDate)}</td>
-            <td>${delivery.boxCode || '-'}</td>
-        </tr>
-    `).join('');
-}
 
-// js/app.js - Replace renderActual method
-
-renderActual() {
-    const tbody = document.getElementById('actualBody');
-    if (this.data.actual.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items found</td></tr>`;
-        return;
+    renderActual(page = 1) {
+        const tbody = document.getElementById('actualBody');
+        const paginationContainer = document.getElementById('actualPagination');
+        
+        if (!this._actualPagination) {
+            this._actualPagination = new Pagination(this.data.actual, 10);
+        } else {
+            this._actualPagination.updateItems(this.data.actual);
+        }
+        this._actualPagination.currentPage = page;
+        
+        const pageItems = this._actualPagination.getCurrentPageItems();
+        
+        if (pageItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items found</td></tr>`;
+            paginationContainer.style.display = 'none';
+            return;
+        }
+        
+        tbody.innerHTML = pageItems.map(actual => `
+            <tr>
+                <td><strong>${actual.sku}</strong></td>
+                <td>${actual.qty}</td>
+                <td>${actual.supplier}</td>
+                <td>${this.formatDate(actual.actualDate)}</td>
+                <td>${actual.boxCode || '-'}</td>
+            </tr>
+        `).join('');
+        
+        document.getElementById('actualStart').textContent = this._actualPagination.getStartIndex();
+        document.getElementById('actualEnd').textContent = this._actualPagination.getEndIndex();
+        document.getElementById('actualTotal').textContent = this._actualPagination.getTotal();
+        document.getElementById('actualPageInfo').textContent = this._actualPagination.getPageInfo();
+        document.getElementById('actualPrev').disabled = !this._actualPagination.hasPrev();
+        document.getElementById('actualNext').disabled = !this._actualPagination.hasNext();
+        paginationContainer.style.display = 'flex';
     }
-    tbody.innerHTML = this.data.actual.map(actual => `
-        <tr>
-            <td><strong>${actual.sku}</strong></td>
-            <td>${actual.qty}</td>
-            <td>${actual.supplier}</td>
-            <td>${this.formatDate(actual.actualDate)}</td>
-            <td>${actual.boxCode || '-'}</td>
-        </tr>
-    `).join('');
-}
 
-    renderPending() {
+    renderPending(page = 1) {
         const tbody = document.getElementById('pendingBody');
+        const paginationContainer = document.getElementById('pendingPagination');
         
         if (this.data.pending.length === 0) {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No pending orders</td></tr>`;
+            paginationContainer.style.display = 'none';
             return;
         }
+        
+        if (!this._pendingPagination) {
+            this._pendingPagination = new Pagination(this.data.pending, 10);
+        } else {
+            this._pendingPagination.updateItems(this.data.pending);
+        }
+        this._pendingPagination.currentPage = page;
+        
+        const pageItems = this._pendingPagination.getCurrentPageItems();
         
         const statusMap = {
             'completed': 'status-completed',
@@ -2276,7 +2488,7 @@ renderActual() {
             'over-delivery': '⚠️ Over-Delivery'
         };
         
-        tbody.innerHTML = this.data.pending.map(pending => {
+        tbody.innerHTML = pageItems.map(pending => {
             let fifoBreakdown = '';
             if (pending.orderStatus && pending.orderStatus.length > 0) {
                 fifoBreakdown = pending.orderStatus.map(os => 
@@ -2314,6 +2526,14 @@ renderActual() {
                 </td></tr>` : ''}
             `;
         }).join('');
+        
+        document.getElementById('pendingStart').textContent = this._pendingPagination.getStartIndex();
+        document.getElementById('pendingEnd').textContent = this._pendingPagination.getEndIndex();
+        document.getElementById('pendingTotal').textContent = this._pendingPagination.getTotal();
+        document.getElementById('pendingPageInfo').textContent = this._pendingPagination.getPageInfo();
+        document.getElementById('pendingPrev').disabled = !this._pendingPagination.hasPrev();
+        document.getElementById('pendingNext').disabled = !this._pendingPagination.hasNext();
+        paginationContainer.style.display = 'flex';
     }
 
     // ============ UTILITY METHODS ============
@@ -2392,42 +2612,18 @@ renderActual() {
             order.orderCode.toLowerCase().includes(searchTerm.toLowerCase())
         );
         
-        const tbody = document.getElementById('ordersBody');
-        if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders match</td></tr>`;
-            return;
+        if (this._ordersPagination) {
+            this._ordersPagination.updateItems(filtered);
+            this.renderOrders(1);
         }
-        tbody.innerHTML = filtered.map(order => `
-            <tr>
-                <td><strong>${order.sku}</strong></td>
-                <td>${order.qty}</td>
-                <td>${order.supplier}</td>
-                <td>${this.formatDate(order.orderDate)}</td>
-                <td>${order.orderCode}</td>
-                <td><span class="status-badge status-pending">Pending</span></td>
-                <td>${order.qty}</td>
-            </tr>
-        `).join('');
     }
 
     filterOrdersBySupplier(supplier) {
         const filtered = supplier ? this.data.orders.filter(o => o.supplier === supplier) : this.data.orders;
-        const tbody = document.getElementById('ordersBody');
-        if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders for this supplier</td></tr>`;
-            return;
+        if (this._ordersPagination) {
+            this._ordersPagination.updateItems(filtered);
+            this.renderOrders(1);
         }
-        tbody.innerHTML = filtered.map(order => `
-            <tr>
-                <td><strong>${order.sku}</strong></td>
-                <td>${order.qty}</td>
-                <td>${order.supplier}</td>
-                <td>${this.formatDate(order.orderDate)}</td>
-                <td>${order.orderCode}</td>
-                <td><span class="status-badge status-pending">Pending</span></td>
-                <td>${order.qty}</td>
-            </tr>
-        `).join('');
     }
 
     filterDeliveries(searchTerm) {
@@ -2437,21 +2633,10 @@ renderActual() {
             (delivery.boxCode && delivery.boxCode.toLowerCase().includes(searchTerm.toLowerCase()))
         );
         
-        const tbody = document.getElementById('deliveriesBody');
-        if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries match</td></tr>`;
-            return;
+        if (this._deliveriesPagination) {
+            this._deliveriesPagination.updateItems(filtered);
+            this.renderDeliveries(1);
         }
-        tbody.innerHTML = filtered.map(delivery => `
-            <tr>
-                <td><strong>${delivery.sku}</strong></td>
-                <td>${delivery.qty}</td>
-                <td>${delivery.supplier}</td>
-                <td>${this.formatDate(delivery.deliveryDate)}</td>
-                <td>${delivery.boxCode || '-'}</td>
-                <td><span class="status-badge status-partial">In Transit</span></td>
-            </tr>
-        `).join('');
     }
 
     filterActual(searchTerm) {
@@ -2461,21 +2646,10 @@ renderActual() {
             (actual.boxCode && actual.boxCode.toLowerCase().includes(searchTerm.toLowerCase()))
         );
         
-        const tbody = document.getElementById('actualBody');
-        if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received match</td></tr>`;
-            return;
+        if (this._actualPagination) {
+            this._actualPagination.updateItems(filtered);
+            this.renderActual(1);
         }
-        tbody.innerHTML = filtered.map(actual => `
-            <tr>
-                <td><strong>${actual.sku}</strong></td>
-                <td>${actual.qty}</td>
-                <td>${actual.supplier}</td>
-                <td>${this.formatDate(actual.actualDate)}</td>
-                <td>${actual.boxCode || '-'}</td>
-                <td><span class="status-badge status-completed">Received</span></td>
-            </tr>
-        `).join('');
     }
 
     filterPending(searchTerm) {
@@ -2485,78 +2659,18 @@ renderActual() {
             pending.orderCode.toLowerCase().includes(searchTerm.toLowerCase())
         );
         
-        const tbody = document.getElementById('pendingBody');
-        if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No pending orders match</td></tr>`;
-            return;
+        if (this._pendingPagination) {
+            this._pendingPagination.updateItems(filtered);
+            this.renderPending(1);
         }
-        const statusMap = {
-            'completed': 'status-completed',
-            'pending': 'status-pending',
-            'partial': 'status-partial',
-            'over-delivery': 'status-over-delivery'
-        };
-        const statusTextMap = {
-            'completed': '✅ Completed',
-            'pending': '⏳ Pending',
-            'partial': '⏳ Partial',
-            'over-delivery': '⚠️ Over-Delivery'
-        };
-        
-        tbody.innerHTML = filtered.map(item => {
-            const statusClass = statusMap[item.status] || 'status-pending';
-            const statusText = statusTextMap[item.status] || item.status;
-            const excessDisplay = item.excess > 0 ? ` (+${item.excess} excess)` : '';
-            return `
-                <tr>
-                    <td><strong>${item.sku}</strong></td>
-                    <td>${item.totalOrder}</td>
-                    <td>${item.delivered}</td>
-                    <td>${item.remaining}${excessDisplay}</td>
-                    <td>${item.supplier}</td>
-                    <td>${this.formatDate(item.orderDate)}</td>
-                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                </tr>
-            `;
-        }).join('');
     }
 
     filterPendingBySupplier(supplier) {
         const filtered = supplier ? this.data.pending.filter(p => p.supplier === supplier) : this.data.pending;
-        const tbody = document.getElementById('pendingBody');
-        if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No pending orders for this supplier</td></tr>`;
-            return;
+        if (this._pendingPagination) {
+            this._pendingPagination.updateItems(filtered);
+            this.renderPending(1);
         }
-        const statusMap = {
-            'completed': 'status-completed',
-            'pending': 'status-pending',
-            'partial': 'status-partial',
-            'over-delivery': 'status-over-delivery'
-        };
-        const statusTextMap = {
-            'completed': '✅ Completed',
-            'pending': '⏳ Pending',
-            'partial': '⏳ Partial',
-            'over-delivery': '⚠️ Over-Delivery'
-        };
-        
-        tbody.innerHTML = filtered.map(item => {
-            const statusClass = statusMap[item.status] || 'status-pending';
-            const statusText = statusTextMap[item.status] || item.status;
-            const excessDisplay = item.excess > 0 ? ` (+${item.excess} excess)` : '';
-            return `
-                <tr>
-                    <td><strong>${item.sku}</strong></td>
-                    <td>${item.totalOrder}</td>
-                    <td>${item.delivered}</td>
-                    <td>${item.remaining}${excessDisplay}</td>
-                    <td>${item.supplier}</td>
-                    <td>${this.formatDate(item.orderDate)}</td>
-                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                </tr>
-            `;
-        }).join('');
     }
 
     // ============ UPLOAD METHODS ============
@@ -2683,10 +2797,10 @@ renderActual() {
 
     renderAll() {
         this.renderDashboard();
-        this.renderOrders();
-        this.renderDeliveries();
-        this.renderActual();
-        this.renderPending();
+        this.renderOrders(1);
+        this.renderDeliveries(1);
+        this.renderActual(1);
+        this.renderPending(1);
         this.updateSupplierFilters();
         this.addMismatchChecker();
         if (this.currentView === 'analysis') {
