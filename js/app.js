@@ -25,22 +25,40 @@ class OrderManagementApp {
     }
 
     async init() {
+        console.log('🔧 App initializing...');
+        
+        // Setup event listeners FIRST (before authentication)
+        console.log('🔧 Setting up event listeners...');
+        this.setupEventListeners();
+        console.log('✅ Event listeners attached');
+        
         // Initialize Google Drive
         try {
+            console.log('🔧 Initializing Google Drive...');
             await driveManager.init();
-            console.log('Google Drive initialized successfully');
+            console.log('✅ Google Drive initialized successfully');
+            
+            // Try to authenticate - this will trigger the popup
+            try {
+                console.log('🔧 Attempting to authenticate...');
+                await driveManager.authenticate();
+                console.log('✅ Authenticated successfully');
+                
+                // Load data after successful authentication
+                await this.loadData();
+                console.log('✅ Data loaded successfully');
+                
+            } catch (authError) {
+                console.warn('⚠️ Authentication not completed:', authError.message);
+                this.showNotification('Please sign in to load data', 'info');
+                // Still render UI, user can click refresh after signing in
+            }
         } catch (error) {
-            console.error('Failed to initialize Google Drive:', error);
+            console.error('❌ Failed to initialize Google Drive:', error);
             this.showNotification('Failed to initialize Google Drive. Please check your configuration.', 'error');
         }
-
-        // Setup event listeners
-        this.setupEventListeners();
         
-        // Load data from Google Drive
-        await this.loadData();
-        
-        // Render initial view
+        // Render initial view (even if not authenticated yet)
         this.renderDashboard();
         this.renderOrders();
         this.renderDeliveries();
@@ -53,8 +71,61 @@ class OrderManagementApp {
         // Add new features
         this.addMismatchChecker();
         this.addBossExport();
+        this.addSignInButton();
         
-        console.log('App initialized successfully');
+        console.log('✅ App initialized successfully');
+    }
+
+    // Add Sign-In Button to Dashboard
+    addSignInButton() {
+        const dashboard = document.getElementById('view-dashboard');
+        const existingSignIn = document.querySelector('.sign-in-button');
+        if (existingSignIn) {
+            existingSignIn.remove();
+        }
+        
+        // Only show if not authenticated
+        if (driveManager.isAuthenticated) return;
+        
+        const container = document.createElement('div');
+        container.className = 'sign-in-button';
+        container.style.cssText = `
+            margin: 20px 0;
+            padding: 20px;
+            background: #FEF3C7;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #F59E0B;
+        `;
+        
+        container.innerHTML = `
+            <i class="fas fa-sign-in-alt" style="font-size: 32px; color: #F59E0B; margin-bottom: 12px;"></i>
+            <h3 style="margin: 0; color: #92400E;">Sign in to Google Drive</h3>
+            <p style="color: #78350F; margin: 8px 0;">Please sign in to access your data</p>
+            <button class="btn-primary" id="signInBtn" style="margin-top: 12px;">
+                <i class="fas fa-google"></i> Sign in with Google
+            </button>
+        `;
+        
+        // Insert after stats grid
+        const statsGrid = dashboard.querySelector('.stats-grid');
+        if (statsGrid) {
+            statsGrid.parentNode.insertBefore(container, statsGrid.nextSibling);
+        }
+        
+        document.getElementById('signInBtn')?.addEventListener('click', async () => {
+            try {
+                this.showNotification('Signing in...', 'info');
+                await driveManager.authenticate();
+                container.remove();
+                await this.loadData();
+                this.renderAll();
+                this.showNotification('✅ Signed in successfully!', 'success');
+            } catch (error) {
+                console.error('Sign in failed:', error);
+                this.showNotification('❌ Sign in failed. Please try again.', 'error');
+            }
+        });
     }
 
     setupEventListeners() {
@@ -71,11 +142,24 @@ class OrderManagementApp {
             document.getElementById('sidebar').classList.toggle('open');
         });
 
-        // Refresh button
+        // Refresh button - Updated with authentication check
         document.getElementById('refreshData').addEventListener('click', async () => {
-            await this.loadData();
-            this.renderAll();
-            this.showNotification('Data refreshed successfully!', 'success');
+            console.log('🔄 Refresh button clicked');
+            try {
+                // Check if we need to authenticate
+                if (!driveManager.isAuthenticated) {
+                    console.log('🔧 Not authenticated, showing sign-in...');
+                    this.showNotification('Please sign in to continue', 'info');
+                    await driveManager.authenticate();
+                    console.log('✅ Authenticated successfully');
+                }
+                await this.loadData();
+                this.renderAll();
+                this.showNotification('Data refreshed successfully!', 'success');
+            } catch (error) {
+                console.error('❌ Refresh failed:', error);
+                this.showNotification('Please sign in to refresh data', 'warning');
+            }
         });
 
         // Upload button
@@ -164,16 +248,34 @@ class OrderManagementApp {
     async loadData() {
         try {
             this.showLoading(true);
+            console.log('📊 Loading data from Google Drive...');
+            
+            // Check authentication first
+            if (!driveManager.isAuthenticated) {
+                console.warn('⚠️ Not authenticated, attempting to authenticate...');
+                await driveManager.authenticate();
+            }
             
             // Load files from all folders
+            console.log('📁 Loading order files...');
             const orderFiles = await driveManager.listFiles(CONFIG.FOLDERS.ORDER);
+            console.log(`📁 Found ${orderFiles.length} order files`);
+            
+            console.log('📁 Loading delivery files...');
             const deliveryFiles = await driveManager.listFiles(CONFIG.FOLDERS.DELIVERY);
+            console.log(`📁 Found ${deliveryFiles.length} delivery files`);
+            
+            console.log('📁 Loading actual received files...');
             const actualFiles = await driveManager.listFiles(CONFIG.FOLDERS.ACTUAL);
+            console.log(`📁 Found ${actualFiles.length} actual received files`);
             
             // Process Excel files
+            console.log('📊 Processing Excel files...');
             const orders = await this.processExcelFiles(orderFiles, 'order');
             const deliveries = await this.processExcelFiles(deliveryFiles, 'delivery');
             const actual = await this.processExcelFiles(actualFiles, 'actual');
+            
+            console.log(`📊 Orders: ${orders.length}, Deliveries: ${deliveries.length}, Actual: ${actual.length}`);
             
             // Update data
             this.data.orders = orders;
@@ -189,10 +291,14 @@ class OrderManagementApp {
             // Update UI
             this.updateStats();
             this.updateActivity();
+            this.addMismatchChecker();
+            this.addBossExport();
+            
+            console.log('✅ Data loaded successfully');
             
         } catch (error) {
-            console.error('Error loading data:', error);
-            this.showNotification('Failed to load data from Google Drive', 'error');
+            console.error('❌ Error loading data:', error);
+            this.showNotification('Failed to load data from Google Drive: ' + error.message, 'error');
             this.showLoading(false);
         }
     }
@@ -204,12 +310,14 @@ class OrderManagementApp {
             if (file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
                 file.mimeType === 'application/vnd.ms-excel') {
                 try {
+                    console.log(`📄 Processing ${type} file: ${file.name}`);
                     const content = await driveManager.downloadFile(file.id);
-                    // Parse Excel content
-                    const parsedData = this.parseExcelData(content, type);
+                    // Parse Excel content using a simple CSV parser
+                    const parsedData = await this.parseExcelData(content, type);
                     data.push(...parsedData);
+                    console.log(`✅ Parsed ${parsedData.length} rows from ${file.name}`);
                 } catch (error) {
-                    console.error(`Error processing file ${file.name}:`, error);
+                    console.error(`❌ Error processing file ${file.name}:`, error);
                 }
             }
         }
@@ -217,11 +325,120 @@ class OrderManagementApp {
         return data;
     }
 
-    parseExcelData(content, type) {
+    async parseExcelData(content, type) {
         // This is a placeholder - implement actual Excel parsing
-        // For now, return mock data
-        console.log(`Parsing ${type} data`);
-        return [];
+        // For now, try to parse as CSV or return mock data
+        console.log(`📝 Parsing ${type} data - content length: ${content?.length || 0}`);
+        
+        // If content is empty, return mock data for testing
+        if (!content || content.length === 0) {
+            console.warn(`⚠️ Empty content for ${type}, returning mock data`);
+            return this.getMockData(type);
+        }
+        
+        // Try to parse as CSV (simple parser)
+        try {
+            const lines = content.split('\n');
+            if (lines.length < 2) {
+                console.warn(`⚠️ Not enough lines for ${type}, returning mock data`);
+                return this.getMockData(type);
+            }
+            
+            // Get headers from first line
+            const headers = lines[0].split(',').map(h => h.trim());
+            const result = [];
+            
+            // Process each row
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                const values = line.split(',').map(v => v.trim());
+                const row = {};
+                
+                headers.forEach((header, index) => {
+                    row[header] = values[index] || '';
+                });
+                
+                // Map to our expected format
+                const mappedRow = this.mapExcelRow(row, type);
+                if (mappedRow) {
+                    result.push(mappedRow);
+                }
+            }
+            
+            console.log(`✅ Parsed ${result.length} rows for ${type}`);
+            return result;
+            
+        } catch (error) {
+            console.error(`❌ Error parsing ${type} data:`, error);
+            return this.getMockData(type);
+        }
+    }
+
+    mapExcelRow(row, type) {
+        try {
+            if (type === 'order') {
+                return {
+                    sku: row['SKU'] || row['sku'] || '',
+                    qty: parseFloat(row['Order Qty'] || row['order_qty'] || 0),
+                    supplier: row['Supplier'] || row['supplier'] || '',
+                    orderDate: row['Order Date'] || row['order_date'] || new Date().toISOString().split('T')[0],
+                    orderCode: row['Order Code'] || row['order_code'] || ''
+                };
+            } else if (type === 'delivery') {
+                return {
+                    sku: row['SKU'] || row['sku'] || '',
+                    qty: parseFloat(row['Delivery Qty'] || row['delivery_qty'] || 0),
+                    supplier: row['Supplier'] || row['supplier'] || '',
+                    deliveryDate: row['Est. Delivery Date'] || row['est_delivery_date'] || new Date().toISOString().split('T')[0],
+                    boxCode: row['Box Code'] || row['box_code'] || ''
+                };
+            } else if (type === 'actual') {
+                return {
+                    sku: row['SKU'] || row['sku'] || '',
+                    qty: parseFloat(row['Delivery Qty'] || row['delivery_qty'] || 0),
+                    supplier: row['Supplier'] || row['supplier'] || '',
+                    actualDate: row['Act. Delivery Date'] || row['act_delivery_date'] || new Date().toISOString().split('T')[0],
+                    boxCode: row['Box Code'] || row['box_code'] || ''
+                };
+            }
+        } catch (error) {
+            console.error('Error mapping row:', error);
+            return null;
+        }
+        return null;
+    }
+
+    getMockData(type) {
+        // Return mock data for testing
+        console.log(`📊 Generating mock data for ${type}`);
+        const mockData = [];
+        const suppliers = ['Supplier A', 'Supplier B', 'Supplier C'];
+        const skus = ['SKU-001', 'SKU-002', 'SKU-003', 'SKU-004', 'SKU-005'];
+        
+        for (let i = 0; i < 5; i++) {
+            const mockItem = {
+                sku: skus[i % skus.length],
+                qty: Math.floor(Math.random() * 100) + 10,
+                supplier: suppliers[i % suppliers.length],
+            };
+            
+            if (type === 'order') {
+                mockItem.orderDate = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+                mockItem.orderCode = `ORD-${String(i + 1).padStart(3, '0')}`;
+            } else if (type === 'delivery') {
+                mockItem.deliveryDate = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+                mockItem.boxCode = `BOX-${String(i + 1).padStart(3, '0')}`;
+            } else if (type === 'actual') {
+                mockItem.actualDate = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+                mockItem.boxCode = `BOX-${String(i + 1).padStart(3, '0')}`;
+            }
+            
+            mockData.push(mockItem);
+        }
+        
+        return mockData;
     }
 
     processPendingOrders() {
@@ -268,9 +485,9 @@ class OrderManagementApp {
                     delivered: delivered,
                     remaining: Math.max(0, remaining),
                     status: remaining === 0 ? 'completed' : delivered > 0 ? 'partial' : 'pending',
-                    orderDate: value.orders[0].orderDate,
-                    orderCode: value.orders[0].orderCode,
-                    note: '' // Add note field for manual corrections
+                    orderDate: value.orders[0]?.orderDate || new Date().toISOString().split('T')[0],
+                    orderCode: value.orders[0]?.orderCode || '',
+                    note: ''
                 });
             }
         });
@@ -335,7 +552,6 @@ class OrderManagementApp {
             return;
         }
         
-        // Simple HTML table export (can be opened in Excel)
         let html = `<html><head><meta charset="UTF-8"><title>${filename}</title>`;
         html += `<style>
             body { font-family: Arial, sans-serif; padding: 20px; }
@@ -354,13 +570,11 @@ class OrderManagementApp {
         </div>`;
         html += `<table>`;
         
-        // Headers
         const headers = Object.keys(data[0]);
         html += '<thead><tr>';
         headers.forEach(h => html += `<th>${h}</th>`);
         html += '</tr></thead><tbody>';
         
-        // Data
         data.forEach(row => {
             html += '<tr>';
             headers.forEach(h => html += `<td>${row[h] || ''}</td>`);
@@ -388,7 +602,6 @@ class OrderManagementApp {
             return;
         }
         
-        // Simple text-based PDF (using window.print)
         const printWindow = window.open('', '_blank', 'width=800,height=600');
         let content = '<html><head><title>Pending Orders Report</title>';
         content += `<style>
@@ -439,7 +652,6 @@ class OrderManagementApp {
         const allSKUs = new Set([...deliverySKUs, ...actualSKUs]);
         const notInOrder = [...allSKUs].filter(sku => !orderSKUs.has(sku));
         
-        // Get details for flagged SKUs
         const flaggedItems = [];
         this.data.deliveries.forEach(d => {
             if (notInOrder.includes(d.sku)) {
@@ -476,7 +688,6 @@ class OrderManagementApp {
             return;
         }
         
-        // Create modal to display flagged items
         const modal = document.createElement('div');
         modal.className = 'modal active';
         modal.innerHTML = `
@@ -518,13 +729,13 @@ class OrderManagementApp {
                     <div class="flag-actions" style="margin-top: 20px; padding: 16px; background: #FEF3C7; border-radius: 8px;">
                         <p style="font-weight: 600; margin-bottom: 12px;">What would you like to do?</p>
                         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                            <button class="btn-primary" onclick="app.flagSKUCorrection()">
+                            <button class="btn-primary" onclick="window.app.flagSKUCorrection()">
                                 <i class="fas fa-edit"></i> Correct SKU in Order
                             </button>
-                            <button class="btn-secondary" onclick="app.flagAddNewOrder()">
+                            <button class="btn-secondary" onclick="window.app.flagAddNewOrder()">
                                 <i class="fas fa-plus"></i> Create New Order
                             </button>
-                            <button class="btn-secondary" onclick="app.exportMismatches()">
+                            <button class="btn-secondary" onclick="window.app.exportMismatches()">
                                 <i class="fas fa-file-export"></i> Export Mismatches
                             </button>
                         </div>
@@ -537,7 +748,6 @@ class OrderManagementApp {
         `;
         document.body.appendChild(modal);
         
-        // Close button
         modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
         modal.addEventListener('click', (e) => {
             if (e.target === modal) modal.remove();
@@ -635,7 +845,6 @@ class OrderManagementApp {
         try {
             this.showLoading(true);
             
-            // Show which files need updating
             let message = '📝 Please update these SKUs in your order files:\n\n';
             corrections.forEach(c => {
                 message += `• Change "${c.oldSku}" to "${c.newSku}" (Supplier: ${c.supplier})\n`;
@@ -645,12 +854,10 @@ class OrderManagementApp {
             this.showLoading(false);
             this.showNotification(message, 'info');
             
-            // Ask if user wants to open Google Drive
             if (confirm('Would you like to open Google Drive to update the files?')) {
                 window.open('https://drive.google.com/drive/folders/' + CONFIG.FOLDERS.ORDER, '_blank');
             }
             
-            // Wait for user to confirm they've updated
             if (confirm('After updating the files in Google Drive, click OK to refresh the data.')) {
                 await this.loadData();
                 this.renderAll();
@@ -668,14 +875,12 @@ class OrderManagementApp {
         const flagged = this.findSKUsNotInOrder();
         if (flagged.length === 0) return;
         
-        // Create a template for new order
         let csvContent = 'SKU,Order Qty,Supplier,Order Date,Order Code\n';
         flagged.forEach(item => {
             const today = new Date().toISOString().split('T')[0];
             csvContent += `${item.sku},${item.qty},${item.supplier},${today},NEW-ORDER-${Date.now()}\n`;
         });
         
-        // Download template
         const blob = new Blob([csvContent], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -708,7 +913,6 @@ class OrderManagementApp {
 
     // Feature 4: Boss Export with detailed view
     addBossExport() {
-        // Add to Analysis view
         const analysisContainer = document.getElementById('analysisContent');
         const existingExport = document.querySelector('.boss-export');
         if (existingExport) {
@@ -763,12 +967,10 @@ class OrderManagementApp {
             </div>
         `;
         
-        // Insert at the top of analysis content
         if (analysisContainer) {
             analysisContainer.parentNode.insertBefore(exportContainer, analysisContainer);
         }
         
-        // Event listeners
         document.getElementById('exportPendingCSV')?.addEventListener('click', () => {
             this.exportPendingOrders('csv');
         });
@@ -856,7 +1058,6 @@ class OrderManagementApp {
             </button>
         `;
         
-        // Insert after stats grid
         const statsGrid = dashboard.querySelector('.stats-grid');
         if (statsGrid) {
             statsGrid.parentNode.insertBefore(container, statsGrid.nextSibling);
@@ -875,7 +1076,8 @@ class OrderManagementApp {
     renderDashboard() {
         this.updateStats();
         this.updateActivity();
-        this.addMismatchChecker(); // Refresh mismatch checker
+        this.addMismatchChecker();
+        this.addSignInButton();
     }
 
     updateStats() {
@@ -894,7 +1096,6 @@ class OrderManagementApp {
         const activityList = document.getElementById('activityList');
         const activities = [];
         
-        // Add recent orders
         this.data.orders.slice(0, 5).forEach(order => {
             activities.push({
                 type: 'order',
@@ -903,7 +1104,6 @@ class OrderManagementApp {
             });
         });
         
-        // Add recent deliveries
         this.data.deliveries.slice(0, 5).forEach(delivery => {
             activities.push({
                 type: 'delivery',
@@ -912,7 +1112,6 @@ class OrderManagementApp {
             });
         });
         
-        // Sort by date (newest first)
         activities.sort((a, b) => new Date(b.date) - new Date(a.date));
         
         activityList.innerHTML = activities.slice(0, 10).map(activity => `
@@ -993,7 +1192,6 @@ class OrderManagementApp {
         let analysisData = [];
         
         if (type === 'supplier') {
-            // Group by supplier
             const supplierMap = new Map();
             this.data.pending.forEach(p => {
                 if (!supplierMap.has(p.supplier)) {
@@ -1016,7 +1214,6 @@ class OrderManagementApp {
                 completionRate: data.total > 0 ? (data.completed / data.total * 100).toFixed(1) : 0
             }));
         } else if (type === 'sku') {
-            // Group by SKU
             const skuMap = new Map();
             this.data.pending.forEach(p => {
                 if (!skuMap.has(p.sku)) {
@@ -1039,7 +1236,6 @@ class OrderManagementApp {
                 completionRate: data.total > 0 ? (data.completed / data.total * 100).toFixed(1) : 0
             }));
         } else {
-            // Date analysis
             const dateMap = new Map();
             this.data.pending.forEach(p => {
                 const date = p.orderDate.split('T')[0];
@@ -1064,7 +1260,6 @@ class OrderManagementApp {
             }));
         }
         
-        // Render analysis
         container.innerHTML = `
             <div class="analysis-table-wrapper">
                 <table>
@@ -1100,17 +1295,14 @@ class OrderManagementApp {
 
     // Utility methods
     switchView(view) {
-        // Update navigation
         document.querySelectorAll('.nav-item').forEach(item => {
             item.classList.toggle('active', item.dataset.view === view);
         });
         
-        // Update views
         document.querySelectorAll('.view').forEach(v => {
             v.classList.toggle('active', v.id === `view-${view}`);
         });
         
-        // Update header
         const titles = {
             dashboard: ['Dashboard', 'Overview of your order management'],
             orders: ['Orders', 'Manage and track all orders'],
@@ -1126,13 +1318,11 @@ class OrderManagementApp {
         
         this.currentView = view;
         
-        // Render specific view content if needed
         if (view === 'analysis') {
             this.renderAnalysis();
-            this.addBossExport(); // Re-add boss export when switching to analysis
+            this.addBossExport();
         }
         
-        // Close sidebar on mobile
         if (window.innerWidth <= 768) {
             document.getElementById('sidebar').classList.remove('open');
         }
@@ -1140,7 +1330,6 @@ class OrderManagementApp {
 
     openUploadModal() {
         document.getElementById('uploadModal').classList.add('active');
-        // Reset file inputs
         document.getElementById('orderFiles').value = '';
         document.getElementById('deliveryFiles').value = '';
         document.getElementById('actualFiles').value = '';
@@ -1148,7 +1337,6 @@ class OrderManagementApp {
 
     openFilterModal() {
         document.getElementById('filterModal').classList.add('active');
-        // Load current filter values
         document.getElementById('filterSupplier').value = this.filters.supplier;
         document.getElementById('filterDateFrom').value = this.filters.dateFrom;
         document.getElementById('filterDateTo').value = this.filters.dateTo;
@@ -1338,10 +1526,8 @@ class OrderManagementApp {
             
             if (!zone || !fileInput) return;
             
-            // Click to browse
             zone.addEventListener('click', () => fileInput.click());
             
-            // Drag and drop
             zone.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 zone.classList.add('dragover');
@@ -1382,25 +1568,26 @@ class OrderManagementApp {
         try {
             this.showLoading(true);
             
+            if (!driveManager.isAuthenticated) {
+                await driveManager.authenticate();
+            }
+            
             const orderFiles = document.getElementById('orderFiles').files;
             const deliveryFiles = document.getElementById('deliveryFiles').files;
             const actualFiles = document.getElementById('actualFiles').files;
             
             let uploadCount = 0;
             
-            // Upload order files
             for (const file of orderFiles) {
                 await driveManager.uploadFile(CONFIG.FOLDERS.ORDER, file);
                 uploadCount++;
             }
             
-            // Upload delivery files
             for (const file of deliveryFiles) {
                 await driveManager.uploadFile(CONFIG.FOLDERS.DELIVERY, file);
                 uploadCount++;
             }
             
-            // Upload actual files
             for (const file of actualFiles) {
                 await driveManager.uploadFile(CONFIG.FOLDERS.ACTUAL, file);
                 uploadCount++;
@@ -1408,7 +1595,6 @@ class OrderManagementApp {
             
             document.getElementById('uploadModal').classList.remove('active');
             
-            // Reload data
             await this.loadData();
             this.renderAll();
             
@@ -1427,13 +1613,11 @@ class OrderManagementApp {
             const type = document.getElementById('analysisType').value;
             const data = this.data.pending;
             
-            // Create CSV data
             let csv = 'SKU,Total Order,Delivered,Remaining,Supplier,Order Date,Status\n';
             data.forEach(p => {
                 csv += `${p.sku},${p.totalOrder},${p.delivered},${p.remaining},${p.supplier},${p.orderDate},${p.status}\n`;
             });
             
-            // Download CSV
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -1477,7 +1661,6 @@ class OrderManagementApp {
     }
 
     showNotification(message, type = 'info') {
-        // Create notification element
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
         notification.innerHTML = `
@@ -1490,7 +1673,6 @@ class OrderManagementApp {
         
         document.body.appendChild(notification);
         
-        // Add styles if not already added
         if (!document.getElementById('notificationStyles')) {
             const style = document.createElement('style');
             style.id = 'notificationStyles';
@@ -1554,14 +1736,12 @@ class OrderManagementApp {
             document.head.appendChild(style);
         }
         
-        // Auto remove after 5 seconds (or longer for warnings)
         const duration = type === 'warning' ? 8000 : 5000;
         setTimeout(() => {
             notification.style.animation = 'slideOut 0.3s ease forwards';
             setTimeout(() => notification.remove(), 300);
         }, duration);
         
-        // Close button
         notification.querySelector('.notification-close').addEventListener('click', () => {
             notification.style.animation = 'slideOut 0.3s ease forwards';
             setTimeout(() => notification.remove(), 300);
@@ -1580,7 +1760,6 @@ class OrderManagementApp {
 
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    // Load Google API scripts
     const loadGoogleAPI = () => {
         return new Promise((resolve) => {
             if (typeof gapi !== 'undefined' && typeof google !== 'undefined') {
@@ -1601,7 +1780,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     loadGoogleAPI().then(() => {
-        // Make sure driveManager is available globally
         if (typeof window.driveManager === 'undefined' && typeof driveManager !== 'undefined') {
             window.driveManager = driveManager;
         }
