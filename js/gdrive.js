@@ -207,7 +207,7 @@ class GoogleDriveManager {
 // Create and expose the driveManager instance
 const driveManager = new GoogleDriveManager();
 
-// Make it available globally
+// Make it available globally for non-module scripts
 if (typeof window !== 'undefined') {
     window.driveManager = driveManager;
 }
