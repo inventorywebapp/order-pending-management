@@ -2,6 +2,7 @@
 // Import required modules
 import { CONFIG } from './config.js';
 import { driveManager } from './gdrive.js';
+import * as XLSX from 'xlsx';  // ← ADD THIS
 
 class OrderManagementApp {
     constructor() {
@@ -303,27 +304,37 @@ class OrderManagementApp {
         }
     }
 
-    async processExcelFiles(files, type) {
-        const data = [];
-        
-        for (const file of files) {
-            if (file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-                file.mimeType === 'application/vnd.ms-excel') {
-                try {
-                    console.log(`📄 Processing ${type} file: ${file.name}`);
-                    const content = await driveManager.downloadFile(file.id);
-                    // Parse Excel content using a simple CSV parser
-                    const parsedData = await this.parseExcelData(content, type);
-                    data.push(...parsedData);
-                    console.log(`✅ Parsed ${parsedData.length} rows from ${file.name}`);
-                } catch (error) {
-                    console.error(`❌ Error processing file ${file.name}:`, error);
-                }
+    // js/app.js - Update processExcelFiles
+
+async processExcelFiles(files, type) {
+    const data = [];
+    
+    for (const file of files) {
+        if (file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            file.mimeType === 'application/vnd.ms-excel') {
+            try {
+                console.log(`📄 Processing ${type} file: ${file.name}`);
+                const arrayBuffer = await driveManager.downloadFile(file.id);
+                
+                // Parse Excel using XLSX library
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                
+                console.log(`📊 Found ${jsonData.length} rows in ${file.name}`);
+                
+                // Map the data
+                const parsedData = jsonData.map(row => this.mapExcelRow(row, type)).filter(row => row !== null);
+                data.push(...parsedData);
+                
+            } catch (error) {
+                console.error(`❌ Error processing file ${file.name}:`, error);
             }
         }
-        
-        return data;
     }
+    
+    return data;
+}
 
     // In js/app.js - Replace the parseExcelData method
 
