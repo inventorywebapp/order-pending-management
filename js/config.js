@@ -1,5 +1,5 @@
+// js/config.js
 // Configuration - Production Ready
-// IMPORTANT: Never hardcode API keys! Use environment variables.
 
 // Check if we're running in a browser or Node environment
 const isBrowser = typeof window !== 'undefined';
@@ -9,13 +9,21 @@ const isProduction = isBrowser && window.location.hostname !== 'localhost';
 const getEnv = (key, fallback = '') => {
     // Browser environment
     if (isBrowser) {
-        // Check if environment variables were injected via script tags
-        if (window.__ENV && window.__ENV[key]) {
-            return window.__ENV[key];
-        }
         // Check if using Vite's import.meta.env
         if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
             return import.meta.env[key];
+        }
+        // Check environment variables injected via window
+        if (window[key]) {
+            return window[key];
+        }
+        // Check window.__ENV (from env-loader.js)
+        if (window.__ENV && window.__ENV[key]) {
+            return window.__ENV[key];
+        }
+        // Check process.env (injected by Vite)
+        if (typeof process !== 'undefined' && process.env && process.env[key]) {
+            return process.env[key];
         }
         return fallback;
     }
@@ -33,7 +41,7 @@ const CONFIG = {
         DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
     },
     
-    // Folder IDs from Google Drive (these are safe to expose as they're just identifiers)
+    // Folder IDs from Google Drive
     FOLDERS: {
         MAIN: '12PxB1WMGrLov54kajAGCHqnEJOjqtJlW',
         ORDER: '13UZpplt52LNel3dXzxF33-CYLxOV03cS',
@@ -83,11 +91,17 @@ const CONFIG = {
     
     // Feature flags
     FEATURES: {
-        ENABLE_BACKEND: isProduction, // Use backend in production for security
+        ENABLE_BACKEND: isProduction,
         ENABLE_CACHE: true,
         DEBUG_MODE: !isProduction,
     }
 };
+
+// Debug: Log configuration status
+console.log('🔧 CONFIG loaded:');
+console.log('🔧 API Key:', CONFIG.GOOGLE_DRIVE.API_KEY ? '✅ Set' : '❌ Not Set');
+console.log('🔧 Client ID:', CONFIG.GOOGLE_DRIVE.CLIENT_ID ? '✅ Set' : '❌ Not Set');
+console.log('🔧 Client ID value:', CONFIG.GOOGLE_DRIVE.CLIENT_ID || 'EMPTY');
 
 // Security check - Warn if API keys are not configured
 (function checkSecurity() {
@@ -99,25 +113,21 @@ const CONFIG = {
         console.warn('Please set the following environment variables:');
         console.warn('  - VITE_GOOGLE_DRIVE_API_KEY');
         console.warn('  - VITE_GOOGLE_DRIVE_CLIENT_ID');
-        console.warn('Or create a .env file with these variables.');
     } else {
         console.log('✅ Google Drive API credentials configured successfully.');
         console.log(`🔒 Running in ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
     }
     
-    // Never log actual API keys
     console.log('🔐 API Key configured:', hasApiKey ? '✅ Yes' : '❌ No');
     console.log('🔐 Client ID configured:', hasClientId ? '✅ Yes' : '❌ No');
 })();
 
-// Export for use in other files
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = CONFIG;
-} else if (typeof window !== 'undefined') {
+// Make CONFIG available globally
+if (typeof window !== 'undefined') {
     window.CONFIG = CONFIG;
 }
 
-// ⭐ ADD THIS LINE FOR VITE MODULE EXPORT ⭐
+// Export for module usage
 export { CONFIG, getEnv };
 
 // Freeze the config to prevent accidental modifications
