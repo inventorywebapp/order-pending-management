@@ -748,11 +748,11 @@ class OrderManagementApp {
                     remainingToDeliver -= deducted;
                     deliveredCount += deducted;
                     
-                    // Find matching delivery for this order to get China Date
-                    let chinaDate = order.orderDate;
+                    // ✅ FIX: Only set China Date if delivery exists
+                    let chinaDate = '';
                     for (const delivery of this.data.deliveries) {
                         if (delivery.sku === order.sku && delivery.supplier === order.supplier) {
-                            chinaDate = delivery.chinaDate || order.orderDate;
+                            chinaDate = delivery.chinaDate || '';
                             break;
                         }
                     }
@@ -760,7 +760,7 @@ class OrderManagementApp {
                     orderStatus.push({
                         orderCode: order.orderCode || '',
                         orderDate: order.orderDate,
-                        chinaDate: chinaDate,
+                        chinaDate: chinaDate,  // ✅ Empty if no delivery
                         qty: order.qty,
                         delivered: deducted,
                         remaining: orderRemaining,
@@ -770,7 +770,7 @@ class OrderManagementApp {
                     orderStatus.push({
                         orderCode: order.orderCode || '',
                         orderDate: order.orderDate,
-                        chinaDate: order.orderDate,
+                        chinaDate: '',  // ✅ Empty for pending orders
                         qty: order.qty,
                         delivered: 0,
                         remaining: order.qty,
@@ -1275,8 +1275,8 @@ class OrderManagementApp {
                             <button class="btn-secondary" onclick="window.app.flagAddNewOrder()">
                                 <i class="fas fa-plus"></i> Create Order
                             </button>
-                            <button class="btn-secondary" onclick="window.app.exportMismatches()">
-                                <i class="fas fa-file-export"></i> Export
+                            <button class="btn-secondary" onclick="window.app.exportAllMismatches()">
+                                <i class="fas fa-file-export"></i> Export All Mismatches
                             </button>
                         </div>
                     </div>
@@ -1450,8 +1450,8 @@ class OrderManagementApp {
                             <button class="btn-secondary" onclick="window.app.flagAddNewOrder()">
                                 <i class="fas fa-plus"></i> Create New Order
                             </button>
-                            <button class="btn-secondary" onclick="window.app.exportMismatches()">
-                                <i class="fas fa-file-export"></i> Export Mismatches
+                            <button class="btn-secondary" onclick="window.app.exportAllMismatches()">
+                                <i class="fas fa-file-export"></i> Export All Mismatches
                             </button>
                         </div>
                     </div>
@@ -1606,33 +1606,109 @@ class OrderManagementApp {
         this.showNotification('📄 New order template downloaded! Upload it to Google Drive.', 'success');
     }
 
-    exportMismatches() {
-        const flagged = this.findSKUsNotInOrder();
-        if (flagged.length === 0) {
+    // ============ EXPORT ALL MISMATCHES ============
+
+    exportAllMismatches() {
+        // Get all mismatch types
+        const skuMismatches = this.findSKUsNotInOrder();
+        const quantityMismatches = this.findQuantityMismatches();
+        
+        if (skuMismatches.length === 0 && quantityMismatches.length === 0) {
             this.showNotification('No mismatches to export', 'info');
             return;
         }
         
-        const data = flagged.map(item => ({
-            'SKU': item.sku,
-            'Supplier': item.supplier,
-            'Quantity': item.qty,
-            'Source': item.source,
-            'Box Code': item.boxCode || '',
-            'Date': item.deliveryDate
-        }));
+        // Combine all mismatches with type labels
+        const allMismatches = [];
         
-        this.exportToCSV(data, 'sku_mismatches');
+        // Add SKU mismatches
+        skuMismatches.forEach(item => {
+            allMismatches.push({
+                'Type': 'SKU Mismatch',
+                'SKU': item.sku,
+                'Supplier': item.supplier,
+                'Quantity': item.qty,
+                'Source': item.source,
+                'Box Code': item.boxCode || '',
+                'Date': item.deliveryDate,
+                'Ordered': 'N/A',
+                'Delivered': item.qty,
+                'Difference': 'N/A',
+                'Status': 'SKU not found in orders'
+            });
+        });
+        
+        // Add quantity mismatches
+        quantityMismatches.forEach(m => {
+            let typeLabel = '';
+            let statusLabel = '';
+            switch(m.type) {
+                case 'over-delivery':
+                    typeLabel = 'Over-Delivery';
+                    statusLabel = `Excess: +${m.excess}`;
+                    break;
+                case 'under-delivery':
+                    typeLabel = 'Under-Delivery';
+                    statusLabel = `Shortage: -${m.shortage}`;
+                    break;
+                case 'no-order':
+                    typeLabel = 'No Order';
+                    statusLabel = 'Delivery without order';
+                    break;
+                case 'no-delivery':
+                    typeLabel = 'No Delivery';
+                    statusLabel = 'Order without delivery';
+                    break;
+                default:
+                    typeLabel = 'Quantity Mismatch';
+                    statusLabel = 'Check quantities';
+            }
+            
+            allMismatches.push({
+                'Type': typeLabel,
+                'SKU': m.sku,
+                'Supplier': m.supplier,
+                'Quantity': m.delivered || 0,
+                'Source': 'Quantity',
+                'Box Code': '',
+                'Date': '',
+                'Ordered': m.ordered || 0,
+                'Delivered': m.delivered || 0,
+                'Difference': m.excess ? `+${m.excess}` : m.shortage ? `-${m.shortage}` : '0',
+                'Status': statusLabel
+            });
+        });
+        
+        // Export all mismatches
+        const headers = ['Type', 'SKU', 'Supplier', 'Ordered', 'Delivered', 'Difference', 'Quantity', 'Source', 'Box Code', 'Date', 'Status'];
+        let csv = headers.join(',') + '\n';
+        allMismatches.forEach(row => {
+            csv += headers.map(h => `"${row[h] || ''}"`).join(',') + '\n';
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `all_mismatches_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        this.showNotification(`✅ Exported ${allMismatches.length} mismatch records`, 'success');
     }
 
     // ============ EXPORT FEATURES ============
 
     exportPendingOrders(format = 'csv') {
         const pendingData = this.data.pending.map(p => {
-            // Get China Date from first order status
-            let chinaDate = p.orderDate;
+            // Get China Date from first order status (only if delivery exists)
+            let chinaDate = '';
             if (p.orderStatus && p.orderStatus.length > 0) {
-                chinaDate = p.orderStatus[0].chinaDate || p.orderDate;
+                // Only show China Date if there was a delivery
+                const hasDelivery = p.orderStatus.some(os => os.delivered > 0);
+                if (hasDelivery) {
+                    chinaDate = p.orderStatus[0].chinaDate || '';
+                }
             }
             
             return {
@@ -1645,7 +1721,7 @@ class OrderManagementApp {
                 'Status': p.status,
                 'Status Note': p.statusNote || '',
                 'Order Date': p.orderDate,
-                'China Date': chinaDate,
+                'China Date': chinaDate,  // ✅ Only shown if delivery exists
                 'Order Code': p.orderCode
             };
         });
@@ -1818,8 +1894,11 @@ class OrderManagementApp {
                 <button class="btn-secondary" id="exportBySupplier">
                     <i class="fas fa-filter"></i> Export by Supplier
                 </button>
+                <button class="btn-secondary" id="exportAllMismatchesBtn">
+                    <i class="fas fa-exclamation-triangle"></i> Export All Mismatches
+                </button>
                 <button class="btn-secondary" id="checkMismatchesBtn">
-                    <i class="fas fa-exclamation-triangle"></i> Check Mismatches
+                    <i class="fas fa-search"></i> View Mismatches
                 </button>
             </div>
             <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
@@ -1861,6 +1940,10 @@ class OrderManagementApp {
             }
         });
         
+        document.getElementById('exportAllMismatchesBtn')?.addEventListener('click', () => {
+            this.exportAllMismatches();
+        });
+        
         document.getElementById('checkMismatchesBtn')?.addEventListener('click', () => {
             this.renderMismatchDetails();
         });
@@ -1874,9 +1957,12 @@ class OrderManagementApp {
         }
         
         const data = supplierData.map(p => {
-            let chinaDate = p.orderDate;
+            let chinaDate = '';
             if (p.orderStatus && p.orderStatus.length > 0) {
-                chinaDate = p.orderStatus[0].chinaDate || p.orderDate;
+                const hasDelivery = p.orderStatus.some(os => os.delivered > 0);
+                if (hasDelivery) {
+                    chinaDate = p.orderStatus[0].chinaDate || '';
+                }
             }
             return {
                 'SKU': p.sku,
@@ -2038,6 +2124,9 @@ class OrderManagementApp {
                         <option value="sku" ${type === 'sku' ? 'selected' : ''}>By SKU</option>
                         <option value="date" ${type === 'date' ? 'selected' : ''}>By Date</option>
                     </select>
+                    <button class="btn-export" id="analysisExportBtn" style="padding: 6px 16px; font-size: 13px;">
+                        <i class="fas fa-download"></i> Export Analysis
+                    </button>
                 </div>
                 <span style="font-size: 14px; color: var(--gray-500);">
                     ${analysisData.length} entries
@@ -2098,6 +2187,26 @@ class OrderManagementApp {
         
         document.getElementById('analysisType')?.addEventListener('change', () => {
             this.renderAnalysis();
+        });
+        
+        document.getElementById('analysisExportBtn')?.addEventListener('click', () => {
+            const type = document.getElementById('analysisType')?.value || 'supplier';
+            const data = this.data.pending;
+            
+            let csv = 'SKU,Total Order,Delivered,Remaining,Excess,Supplier,Order Date,Status\n';
+            data.forEach(p => {
+                csv += `${p.sku},${p.totalOrder},${p.delivered},${p.remaining},${p.excess || 0},${p.supplier},${p.orderDate},${p.status}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `analysis_${type}_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            this.showNotification('Analysis exported successfully!', 'success');
         });
     }
 
@@ -2191,7 +2300,6 @@ class OrderManagementApp {
                 <td>${delivery.supplier}</td>
                 <td>${this.formatDate(delivery.chinaDate)}</td>
                 <td>${delivery.boxCode || '-'}</td>
-                <td><span class="status-badge status-partial">In Transit</span></td>
             </tr>
         `).join('');
     }
@@ -2209,7 +2317,6 @@ class OrderManagementApp {
                 <td>${item.supplier}</td>
                 <td>${this.formatDate(item.actualDate)}</td>
                 <td>${item.boxCode || '-'}</td>
-                <td><span class="status-badge status-completed">Received</span></td>
             </tr>
         `).join('');
     }
@@ -2422,7 +2529,7 @@ class OrderManagementApp {
             if (pending.orderStatus && pending.orderStatus.length > 0) {
                 fifoBreakdown = pending.orderStatus.map(os => 
                     `<div style="font-size: 11px; color: #666;">
-                        ${os.orderDate}: ${os.delivered}/${os.qty} delivered (China: ${os.chinaDate || os.orderDate})
+                        ${os.orderDate}: ${os.delivered}/${os.qty} delivered ${os.chinaDate ? `(China: ${os.chinaDate})` : ''}
                         ${os.remaining > 0 ? `(Remaining: ${os.remaining})` : '✅'}
                     </div>`
                 ).join('');
@@ -2661,7 +2768,7 @@ class OrderManagementApp {
         
         const tbody = document.getElementById('actualBody');
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received match</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received match</td></tr>`;
             return;
         }
         
@@ -2669,7 +2776,7 @@ class OrderManagementApp {
         const displayData = filtered.slice(0, this.loadMore.actual.limit);
         const hasMore = filtered.length > this.loadMore.actual.limit;
         
-            tbody.innerHTML = displayData.map(actual => `
+        tbody.innerHTML = displayData.map(actual => `
             <tr>
                 <td><strong>${actual.sku}</strong></td>
                 <td>${actual.qty}</td>
