@@ -24,30 +24,34 @@ class OrderManagementApp {
         this._activityOffset = 0;
         this._activities = [];
         
+        // Pagination/Load More state
+        this.loadMore = {
+            orders: { limit: 20, offset: 0, total: 0 },
+            deliveries: { limit: 20, offset: 0, total: 0 },
+            actual: { limit: 20, offset: 0, total: 0 },
+            pending: { limit: 20, offset: 0, total: 0 }
+        };
+        
         this.init();
     }
 
     async init() {
         console.log('🔧 App initializing...');
         
-        // Setup event listeners FIRST (before authentication)
         console.log('🔧 Setting up event listeners...');
         this.setupEventListeners();
         console.log('✅ Event listeners attached');
         
-        // Initialize Google Drive
         try {
             console.log('🔧 Initializing Google Drive...');
             await driveManager.init();
             console.log('✅ Google Drive initialized successfully');
             
-            // Try to authenticate - this will trigger the popup
             try {
                 console.log('🔧 Attempting to authenticate...');
                 await driveManager.authenticate();
                 console.log('✅ Authenticated successfully');
                 
-                // Load data after successful authentication
                 await this.loadData();
                 console.log('✅ Data loaded successfully');
                 
@@ -60,17 +64,14 @@ class OrderManagementApp {
             this.showNotification('Failed to initialize Google Drive. Please check your configuration.', 'error');
         }
         
-        // Render initial view (even if not authenticated yet)
         this.renderDashboard();
         this.renderOrders();
         this.renderDeliveries();
         this.renderActual();
         this.renderPending();
         
-        // Update supplier filters
         this.updateSupplierFilters();
         
-        // Add new features
         this.addMismatchChecker();
         this.addBossExport();
         this.addSignInButton();
@@ -152,6 +153,8 @@ class OrderManagementApp {
                     await driveManager.authenticate();
                     console.log('✅ Authenticated successfully');
                 }
+                // Reset load more states on refresh
+                this.resetLoadMore();
                 await this.loadData();
                 this.renderAll();
                 this.showNotification('Data refreshed successfully!', 'success');
@@ -169,6 +172,20 @@ class OrderManagementApp {
         // Filter button
         document.getElementById('filterBtn').addEventListener('click', () => {
             this.openFilterModal();
+        });
+
+        // Load More buttons for all tabs
+        document.getElementById('loadMoreOrders')?.addEventListener('click', () => {
+            this.loadMoreData('orders');
+        });
+        document.getElementById('loadMoreDeliveries')?.addEventListener('click', () => {
+            this.loadMoreData('deliveries');
+        });
+        document.getElementById('loadMoreActual')?.addEventListener('click', () => {
+            this.loadMoreData('actual');
+        });
+        document.getElementById('loadMorePending')?.addEventListener('click', () => {
+            this.loadMoreData('pending');
         });
 
         // Load More button for activities
@@ -211,7 +228,7 @@ class OrderManagementApp {
             this.clearFilters();
         });
 
-        // Search inputs
+        // Search inputs - search ALL data, not just loaded
         document.getElementById('orderSearch').addEventListener('input', (e) => {
             this.filterOrders(e.target.value);
         });
@@ -255,6 +272,44 @@ class OrderManagementApp {
         this.setupDropZones();
     }
 
+    resetLoadMore() {
+        this.loadMore = {
+            orders: { limit: 20, offset: 0, total: 0 },
+            deliveries: { limit: 20, offset: 0, total: 0 },
+            actual: { limit: 20, offset: 0, total: 0 },
+            pending: { limit: 20, offset: 0, total: 0 }
+        };
+    }
+
+    loadMoreData(tab) {
+        const state = this.loadMore[tab];
+        state.offset += state.limit;
+        this.renderTab(tab);
+    }
+
+    getPaginatedData(data, tab) {
+        const state = this.loadMore[tab];
+        state.total = data.length;
+        return data.slice(0, state.offset + state.limit);
+    }
+
+    renderTab(tab) {
+        switch(tab) {
+            case 'orders':
+                this.renderOrders();
+                break;
+            case 'deliveries':
+                this.renderDeliveries();
+                break;
+            case 'actual':
+                this.renderActual();
+                break;
+            case 'pending':
+                this.renderPending();
+                break;
+        }
+    }
+
     async loadData() {
         try {
             this.showLoading(true);
@@ -292,6 +347,9 @@ class OrderManagementApp {
             
             this.data.processed = true;
             this.showLoading(false);
+            
+            // Reset load more states
+            this.resetLoadMore();
             
             this.updateStats();
             this.updateActivity(10, 0);
@@ -376,7 +434,7 @@ class OrderManagementApp {
             const expectedHeaders = type === 'order' 
                 ? ['SKU', 'Order Qty', 'Supplier', 'Order Date', 'Order Code']
                 : type === 'delivery'
-                ? ['SKU', 'Delivery Qty', 'Supplier', 'Est. Delivery Date', 'Box Code']
+                ? ['SKU', 'Delivery Qty', 'Supplier', 'China Date', 'Box Code']
                 : ['SKU', 'Delivery Qty', 'Supplier', 'Act. Delivery Date', 'Box Code'];
             
             let hasHeaders = false;
@@ -508,7 +566,8 @@ class OrderManagementApp {
                 const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
                 const qty = parseFloat(this.findValue(row, ['Delivery Qty', 'delivery_qty', 'Qty', 'qty']) || 0);
                 const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
-                const deliveryDate = this.convertExcelDate(this.findValue(row, ['Est. Delivery Date', 'est_delivery_date', 'Delivery Date', 'delivery_date', 'Date', 'date']));
+                // ✅ Changed from Est. Delivery Date to China Date
+                const chinaDate = this.convertExcelDate(this.findValue(row, ['China Date', 'china_date', 'Est. Delivery Date', 'est_delivery_date', 'Delivery Date', 'delivery_date', 'Date', 'date']));
                 const boxCode = this.findValue(row, ['Box Code', 'box_code', 'Box', 'box']);
                 
                 if (!sku || qty === 0) return null;
@@ -517,7 +576,7 @@ class OrderManagementApp {
                     sku: sku,
                     qty: qty,
                     supplier: supplier || 'Unknown',
-                    deliveryDate: deliveryDate || new Date().toISOString().split('T')[0],
+                    chinaDate: chinaDate || new Date().toISOString().split('T')[0],
                     boxCode: boxCode || ''
                 };
             } else if (type === 'actual') {
@@ -624,7 +683,7 @@ class OrderManagementApp {
                 mockItem.orderDate = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
                 mockItem.orderCode = `ORD-${String(i + 1).padStart(3, '0')}`;
             } else if (type === 'delivery') {
-                mockItem.deliveryDate = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+                mockItem.chinaDate = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
                 mockItem.boxCode = `BOX-${String(i + 1).padStart(3, '0')}`;
             } else if (type === 'actual') {
                 mockItem.actualDate = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
@@ -689,9 +748,19 @@ class OrderManagementApp {
                     remainingToDeliver -= deducted;
                     deliveredCount += deducted;
                     
+                    // Find matching delivery for this order to get China Date
+                    let chinaDate = order.orderDate;
+                    for (const delivery of this.data.deliveries) {
+                        if (delivery.sku === order.sku && delivery.supplier === order.supplier) {
+                            chinaDate = delivery.chinaDate || order.orderDate;
+                            break;
+                        }
+                    }
+                    
                     orderStatus.push({
                         orderCode: order.orderCode || '',
                         orderDate: order.orderDate,
+                        chinaDate: chinaDate,
                         qty: order.qty,
                         delivered: deducted,
                         remaining: orderRemaining,
@@ -701,6 +770,7 @@ class OrderManagementApp {
                     orderStatus.push({
                         orderCode: order.orderCode || '',
                         orderDate: order.orderDate,
+                        chinaDate: order.orderDate,
                         qty: order.qty,
                         delivered: 0,
                         remaining: order.qty,
@@ -838,8 +908,8 @@ class OrderManagementApp {
             activities.push({
                 type: 'delivery',
                 message: `Delivery: ${delivery.sku} ×${delivery.qty} from ${delivery.supplier} (Box: ${delivery.boxCode || 'N/A'})`,
-                date: delivery.deliveryDate,
-                timestamp: new Date(delivery.deliveryDate).getTime()
+                date: delivery.chinaDate,
+                timestamp: new Date(delivery.chinaDate).getTime()
             });
         });
         
@@ -1229,12 +1299,10 @@ class OrderManagementApp {
         const existingChecker = document.getElementById('mismatchCheckerContainer');
         if (!dashboard) return;
         
-        // Check if container exists, create if not
         let container = document.getElementById('mismatchCheckerContainer');
         if (!container) {
             container = document.createElement('div');
             container.id = 'mismatchCheckerContainer';
-            // Insert after supplier kpi section
             const supplierSection = document.querySelector('.supplier-kpi-section');
             if (supplierSection) {
                 supplierSection.parentNode.insertBefore(container, supplierSection.nextSibling);
@@ -1308,7 +1376,7 @@ class OrderManagementApp {
                     qty: d.qty,
                     source: 'Delivery',
                     boxCode: d.boxCode,
-                    deliveryDate: d.deliveryDate
+                    deliveryDate: d.chinaDate
                 });
             }
         });
@@ -1560,18 +1628,27 @@ class OrderManagementApp {
     // ============ EXPORT FEATURES ============
 
     exportPendingOrders(format = 'csv') {
-        const pendingData = this.data.pending.map(p => ({
-            'SKU': p.sku,
-            'Supplier': p.supplier,
-            'Total Order': p.totalOrder,
-            'Delivered': p.delivered,
-            'Remaining': p.remaining,
-            'Excess': p.excess || 0,
-            'Status': p.status,
-            'Status Note': p.statusNote || '',
-            'Order Date': p.orderDate,
-            'Order Code': p.orderCode
-        }));
+        const pendingData = this.data.pending.map(p => {
+            // Get China Date from first order status
+            let chinaDate = p.orderDate;
+            if (p.orderStatus && p.orderStatus.length > 0) {
+                chinaDate = p.orderStatus[0].chinaDate || p.orderDate;
+            }
+            
+            return {
+                'SKU': p.sku,
+                'Supplier': p.supplier,
+                'Total Order': p.totalOrder,
+                'Delivered': p.delivered,
+                'Remaining': p.remaining,
+                'Excess': p.excess || 0,
+                'Status': p.status,
+                'Status Note': p.statusNote || '',
+                'Order Date': p.orderDate,
+                'China Date': chinaDate,
+                'Order Code': p.orderCode
+            };
+        });
 
         if (format === 'csv') {
             this.exportToCSV(pendingData, 'pending_orders');
@@ -1796,16 +1873,23 @@ class OrderManagementApp {
             return;
         }
         
-        const data = supplierData.map(p => ({
-            'SKU': p.sku,
-            'Total Order': p.totalOrder,
-            'Delivered': p.delivered,
-            'Remaining': p.remaining,
-            'Excess': p.excess || 0,
-            'Status': p.status,
-            'Order Date': p.orderDate,
-            'Order Code': p.orderCode
-        }));
+        const data = supplierData.map(p => {
+            let chinaDate = p.orderDate;
+            if (p.orderStatus && p.orderStatus.length > 0) {
+                chinaDate = p.orderStatus[0].chinaDate || p.orderDate;
+            }
+            return {
+                'SKU': p.sku,
+                'Total Order': p.totalOrder,
+                'Delivered': p.delivered,
+                'Remaining': p.remaining,
+                'Excess': p.excess || 0,
+                'Status': p.status,
+                'Order Date': p.orderDate,
+                'China Date': chinaDate,
+                'Order Code': p.orderCode
+            };
+        });
         
         this.exportToCSV(data, `${supplier}_orders`);
         this.showNotification(`✅ Exported ${data.length} records for ${supplier}`, 'success');
@@ -2012,7 +2096,6 @@ class OrderManagementApp {
             </div>
         `;
         
-        // Re-attach event listener for analysis type dropdown
         document.getElementById('analysisType')?.addEventListener('change', () => {
             this.renderAnalysis();
         });
@@ -2046,8 +2129,8 @@ class OrderManagementApp {
             let match = true;
             if (this.filters.supplier && delivery.supplier !== this.filters.supplier) match = false;
             if (this.filters.sku && !delivery.sku.toLowerCase().includes(this.filters.sku.toLowerCase())) match = false;
-            if (this.filters.dateFrom && delivery.deliveryDate < this.filters.dateFrom) match = false;
-            if (this.filters.dateTo && delivery.deliveryDate > this.filters.dateTo) match = false;
+            if (this.filters.dateFrom && delivery.chinaDate < this.filters.dateFrom) match = false;
+            if (this.filters.dateTo && delivery.chinaDate > this.filters.dateTo) match = false;
             return match;
         });
         
@@ -2106,7 +2189,7 @@ class OrderManagementApp {
                 <td><strong>${delivery.sku}</strong></td>
                 <td>${delivery.qty}</td>
                 <td>${delivery.supplier}</td>
-                <td>${this.formatDate(delivery.deliveryDate)}</td>
+                <td>${this.formatDate(delivery.chinaDate)}</td>
                 <td>${delivery.boxCode || '-'}</td>
                 <td><span class="status-badge status-partial">In Transit</span></td>
             </tr>
@@ -2196,71 +2279,129 @@ class OrderManagementApp {
 
     // ============ RENDER METHODS ============
 
-    // js/app.js - Replace renderOrders method
-
-renderOrders() {
-    const tbody = document.getElementById('ordersBody');
-    if (this.data.orders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders found</td></tr>`;
-        return;
+    // Orders - with Load More
+    renderOrders() {
+        const tbody = document.getElementById('ordersBody');
+        const loadMoreContainer = document.getElementById('loadMoreOrdersContainer');
+        const state = this.loadMore.orders;
+        
+        if (this.data.orders.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders found</td></tr>`;
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+            return;
+        }
+        
+        const paginatedData = this.getPaginatedData(this.data.orders, 'orders');
+        const hasMore = paginatedData.length < this.data.orders.length;
+        
+        tbody.innerHTML = paginatedData.map(order => `
+            <tr>
+                <td><strong>${order.sku}</strong></td>
+                <td>${order.qty}</td>
+                <td>${order.supplier}</td>
+                <td>${this.formatDate(order.orderDate)}</td>
+                <td>${order.orderCode}</td>
+                <td><span class="status-badge status-pending">Pending</span></td>
+            </tr>
+        `).join('');
+        
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMoreOrders');
+            const remaining = this.data.orders.length - paginatedData.length;
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${remaining} remaining)`;
+                loadMoreBtn.disabled = !hasMore;
+            }
+        }
     }
-    tbody.innerHTML = this.data.orders.map(order => `
-        <tr>
-            <td><strong>${order.sku}</strong></td>
-            <td>${order.qty}</td>
-            <td>${order.supplier}</td>
-            <td>${this.formatDate(order.orderDate)}</td>
-            <td>${order.orderCode}</td>
-            <td><span class="status-badge status-pending">Pending</span></td>
-        </tr>
-    `).join('');
-}
 
-// js/app.js - Replace renderDeliveries method
-
-renderDeliveries() {
-    const tbody = document.getElementById('deliveriesBody');
-    if (this.data.deliveries.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries found</td></tr>`;
-        return;
+    // Deliveries - with Load More
+    renderDeliveries() {
+        const tbody = document.getElementById('deliveriesBody');
+        const loadMoreContainer = document.getElementById('loadMoreDeliveriesContainer');
+        const state = this.loadMore.deliveries;
+        
+        if (this.data.deliveries.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries found</td></tr>`;
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+            return;
+        }
+        
+        const paginatedData = this.getPaginatedData(this.data.deliveries, 'deliveries');
+        const hasMore = paginatedData.length < this.data.deliveries.length;
+        
+        tbody.innerHTML = paginatedData.map(delivery => `
+            <tr>
+                <td><strong>${delivery.sku}</strong></td>
+                <td>${delivery.qty}</td>
+                <td>${delivery.supplier}</td>
+                <td>${this.formatDate(delivery.chinaDate)}</td>
+                <td>${delivery.boxCode || '-'}</td>
+            </tr>
+        `).join('');
+        
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMoreDeliveries');
+            const remaining = this.data.deliveries.length - paginatedData.length;
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${remaining} remaining)`;
+                loadMoreBtn.disabled = !hasMore;
+            }
+        }
     }
-    tbody.innerHTML = this.data.deliveries.map(delivery => `
-        <tr>
-            <td><strong>${delivery.sku}</strong></td>
-            <td>${delivery.qty}</td>
-            <td>${delivery.supplier}</td>
-            <td>${this.formatDate(delivery.deliveryDate)}</td>
-            <td>${delivery.boxCode || '-'}</td>
-        </tr>
-    `).join('');
-}
 
-// js/app.js - Replace renderActual method
-
-renderActual() {
-    const tbody = document.getElementById('actualBody');
-    if (this.data.actual.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items found</td></tr>`;
-        return;
+    // Actual Received - with Load More
+    renderActual() {
+        const tbody = document.getElementById('actualBody');
+        const loadMoreContainer = document.getElementById('loadMoreActualContainer');
+        const state = this.loadMore.actual;
+        
+        if (this.data.actual.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received items found</td></tr>`;
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+            return;
+        }
+        
+        const paginatedData = this.getPaginatedData(this.data.actual, 'actual');
+        const hasMore = paginatedData.length < this.data.actual.length;
+        
+        tbody.innerHTML = paginatedData.map(actual => `
+            <tr>
+                <td><strong>${actual.sku}</strong></td>
+                <td>${actual.qty}</td>
+                <td>${actual.supplier}</td>
+                <td>${this.formatDate(actual.actualDate)}</td>
+                <td>${actual.boxCode || '-'}</td>
+            </tr>
+        `).join('');
+        
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMoreActual');
+            const remaining = this.data.actual.length - paginatedData.length;
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${remaining} remaining)`;
+                loadMoreBtn.disabled = !hasMore;
+            }
+        }
     }
-    tbody.innerHTML = this.data.actual.map(actual => `
-        <tr>
-            <td><strong>${actual.sku}</strong></td>
-            <td>${actual.qty}</td>
-            <td>${actual.supplier}</td>
-            <td>${this.formatDate(actual.actualDate)}</td>
-            <td>${actual.boxCode || '-'}</td>
-        </tr>
-    `).join('');
-}
 
+    // Pending - with Load More
     renderPending() {
         const tbody = document.getElementById('pendingBody');
+        const loadMoreContainer = document.getElementById('loadMorePendingContainer');
+        const state = this.loadMore.pending;
         
         if (this.data.pending.length === 0) {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No pending orders</td></tr>`;
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
             return;
         }
+        
+        const paginatedData = this.getPaginatedData(this.data.pending, 'pending');
+        const hasMore = paginatedData.length < this.data.pending.length;
         
         const statusMap = {
             'completed': 'status-completed',
@@ -2276,12 +2417,12 @@ renderActual() {
             'over-delivery': '⚠️ Over-Delivery'
         };
         
-        tbody.innerHTML = this.data.pending.map(pending => {
+        tbody.innerHTML = paginatedData.map(pending => {
             let fifoBreakdown = '';
             if (pending.orderStatus && pending.orderStatus.length > 0) {
                 fifoBreakdown = pending.orderStatus.map(os => 
                     `<div style="font-size: 11px; color: #666;">
-                        ${os.orderDate}: ${os.delivered}/${os.qty} delivered
+                        ${os.orderDate}: ${os.delivered}/${os.qty} delivered (China: ${os.chinaDate || os.orderDate})
                         ${os.remaining > 0 ? `(Remaining: ${os.remaining})` : '✅'}
                     </div>`
                 ).join('');
@@ -2314,6 +2455,16 @@ renderActual() {
                 </td></tr>` : ''}
             `;
         }).join('');
+        
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMorePending');
+            const remaining = this.data.pending.length - paginatedData.length;
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${remaining} remaining)`;
+                loadMoreBtn.disabled = !hasMore;
+            }
+        }
     }
 
     // ============ UTILITY METHODS ============
@@ -2386,6 +2537,7 @@ renderActual() {
     }
 
     filterOrders(searchTerm) {
+        // Search ALL data, not just loaded
         const filtered = this.data.orders.filter(order => 
             order.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
             order.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2397,7 +2549,13 @@ renderActual() {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders match</td></tr>`;
             return;
         }
-        tbody.innerHTML = filtered.map(order => `
+        
+        // Reset load more state when searching
+        this.loadMore.orders.offset = 0;
+        const displayData = filtered.slice(0, this.loadMore.orders.limit);
+        const hasMore = filtered.length > this.loadMore.orders.limit;
+        
+        tbody.innerHTML = displayData.map(order => `
             <tr>
                 <td><strong>${order.sku}</strong></td>
                 <td>${order.qty}</td>
@@ -2405,9 +2563,18 @@ renderActual() {
                 <td>${this.formatDate(order.orderDate)}</td>
                 <td>${order.orderCode}</td>
                 <td><span class="status-badge status-pending">Pending</span></td>
-                <td>${order.qty}</td>
             </tr>
         `).join('');
+        
+        // Update Load More button for search results
+        const loadMoreContainer = document.getElementById('loadMoreOrdersContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMoreOrders');
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${filtered.length - this.loadMore.orders.limit} remaining)`;
+            }
+        }
     }
 
     filterOrdersBySupplier(supplier) {
@@ -2417,7 +2584,12 @@ renderActual() {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No orders for this supplier</td></tr>`;
             return;
         }
-        tbody.innerHTML = filtered.map(order => `
+        
+        this.loadMore.orders.offset = 0;
+        const displayData = filtered.slice(0, this.loadMore.orders.limit);
+        const hasMore = filtered.length > this.loadMore.orders.limit;
+        
+        tbody.innerHTML = displayData.map(order => `
             <tr>
                 <td><strong>${order.sku}</strong></td>
                 <td>${order.qty}</td>
@@ -2425,12 +2597,21 @@ renderActual() {
                 <td>${this.formatDate(order.orderDate)}</td>
                 <td>${order.orderCode}</td>
                 <td><span class="status-badge status-pending">Pending</span></td>
-                <td>${order.qty}</td>
             </tr>
         `).join('');
+        
+        const loadMoreContainer = document.getElementById('loadMoreOrdersContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMoreOrders');
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${filtered.length - this.loadMore.orders.limit} remaining)`;
+            }
+        }
     }
 
     filterDeliveries(searchTerm) {
+        // Search ALL delivery data
         const filtered = this.data.deliveries.filter(delivery => 
             delivery.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
             delivery.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2442,19 +2623,34 @@ renderActual() {
             tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries match</td></tr>`;
             return;
         }
-        tbody.innerHTML = filtered.map(delivery => `
+        
+        this.loadMore.deliveries.offset = 0;
+        const displayData = filtered.slice(0, this.loadMore.deliveries.limit);
+        const hasMore = filtered.length > this.loadMore.deliveries.limit;
+        
+        tbody.innerHTML = displayData.map(delivery => `
             <tr>
                 <td><strong>${delivery.sku}</strong></td>
                 <td>${delivery.qty}</td>
                 <td>${delivery.supplier}</td>
-                <td>${this.formatDate(delivery.deliveryDate)}</td>
+                <td>${this.formatDate(delivery.chinaDate)}</td>
                 <td>${delivery.boxCode || '-'}</td>
                 <td><span class="status-badge status-partial">In Transit</span></td>
             </tr>
         `).join('');
+        
+        const loadMoreContainer = document.getElementById('loadMoreDeliveriesContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMoreDeliveries');
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${filtered.length - this.loadMore.deliveries.limit} remaining)`;
+            }
+        }
     }
 
     filterActual(searchTerm) {
+        // Search ALL actual data
         const filtered = this.data.actual.filter(actual => 
             actual.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
             actual.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2466,7 +2662,12 @@ renderActual() {
             tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No actual received match</td></tr>`;
             return;
         }
-        tbody.innerHTML = filtered.map(actual => `
+        
+        this.loadMore.actual.offset = 0;
+        const displayData = filtered.slice(0, this.loadMore.actual.limit);
+        const hasMore = filtered.length > this.loadMore.actual.limit;
+        
+        tbody.innerHTML = displayData.map(actual => `
             <tr>
                 <td><strong>${actual.sku}</strong></td>
                 <td>${actual.qty}</td>
@@ -2476,9 +2677,19 @@ renderActual() {
                 <td><span class="status-badge status-completed">Received</span></td>
             </tr>
         `).join('');
+        
+        const loadMoreContainer = document.getElementById('loadMoreActualContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMoreActual');
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${filtered.length - this.loadMore.actual.limit} remaining)`;
+            }
+        }
     }
 
     filterPending(searchTerm) {
+        // Search ALL pending data
         const filtered = this.data.pending.filter(pending => 
             pending.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
             pending.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2490,6 +2701,11 @@ renderActual() {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No pending orders match</td></tr>`;
             return;
         }
+        
+        this.loadMore.pending.offset = 0;
+        const displayData = filtered.slice(0, this.loadMore.pending.limit);
+        const hasMore = filtered.length > this.loadMore.pending.limit;
+        
         const statusMap = {
             'completed': 'status-completed',
             'pending': 'status-pending',
@@ -2503,7 +2719,7 @@ renderActual() {
             'over-delivery': '⚠️ Over-Delivery'
         };
         
-        tbody.innerHTML = filtered.map(item => {
+        tbody.innerHTML = displayData.map(item => {
             const statusClass = statusMap[item.status] || 'status-pending';
             const statusText = statusTextMap[item.status] || item.status;
             const excessDisplay = item.excess > 0 ? ` (+${item.excess} excess)` : '';
@@ -2519,6 +2735,15 @@ renderActual() {
                 </tr>
             `;
         }).join('');
+        
+        const loadMoreContainer = document.getElementById('loadMorePendingContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMorePending');
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${filtered.length - this.loadMore.pending.limit} remaining)`;
+            }
+        }
     }
 
     filterPendingBySupplier(supplier) {
@@ -2528,6 +2753,11 @@ renderActual() {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--gray-500);">No pending orders for this supplier</td></tr>`;
             return;
         }
+        
+        this.loadMore.pending.offset = 0;
+        const displayData = filtered.slice(0, this.loadMore.pending.limit);
+        const hasMore = filtered.length > this.loadMore.pending.limit;
+        
         const statusMap = {
             'completed': 'status-completed',
             'pending': 'status-pending',
@@ -2541,7 +2771,7 @@ renderActual() {
             'over-delivery': '⚠️ Over-Delivery'
         };
         
-        tbody.innerHTML = filtered.map(item => {
+        tbody.innerHTML = displayData.map(item => {
             const statusClass = statusMap[item.status] || 'status-pending';
             const statusText = statusTextMap[item.status] || item.status;
             const excessDisplay = item.excess > 0 ? ` (+${item.excess} excess)` : '';
@@ -2557,6 +2787,15 @@ renderActual() {
                 </tr>
             `;
         }).join('');
+        
+        const loadMoreContainer = document.getElementById('loadMorePendingContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'flex' : 'none';
+            const loadMoreBtn = document.getElementById('loadMorePending');
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = `Load More (${filtered.length - this.loadMore.pending.limit} remaining)`;
+            }
+        }
     }
 
     // ============ UPLOAD METHODS ============
@@ -2643,6 +2882,7 @@ renderActual() {
             
             document.getElementById('uploadModal').classList.remove('active');
             
+            this.resetLoadMore();
             await this.loadData();
             this.renderAll();
             
