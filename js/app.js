@@ -2610,6 +2610,8 @@ class OrderManagementApp {
         }
     }
 
+    // js/app.js - Replace filterDeliveries method
+
     filterDeliveries(searchTerm) {
         // Search ALL delivery data
         const filtered = this.data.deliveries.filter(delivery => 
@@ -2620,7 +2622,7 @@ class OrderManagementApp {
         
         const tbody = document.getElementById('deliveriesBody');
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries match</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--gray-500);">No deliveries match</td></tr>`;
             return;
         }
         
@@ -2628,6 +2630,7 @@ class OrderManagementApp {
         const displayData = filtered.slice(0, this.loadMore.deliveries.limit);
         const hasMore = filtered.length > this.loadMore.deliveries.limit;
         
+        // ✅ FIX: Removed the extra "Status" column
         tbody.innerHTML = displayData.map(delivery => `
             <tr>
                 <td><strong>${delivery.sku}</strong></td>
@@ -2635,7 +2638,6 @@ class OrderManagementApp {
                 <td>${delivery.supplier}</td>
                 <td>${this.formatDate(delivery.chinaDate)}</td>
                 <td>${delivery.boxCode || '-'}</td>
-                <td><span class="status-badge status-partial">In Transit</span></td>
             </tr>
         `).join('');
         
