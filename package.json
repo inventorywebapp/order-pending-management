@@ -1,0 +1,30 @@
+{
+  "name": "order-pending-management",
+  "version": "1.0.0",
+  "description": "Order Pending Management System with Google Drive integration",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test-env": "node -e \"console.log('Testing environment...'); import('dotenv').then(dotenv => { dotenv.config(); console.log('API Key exists:', !!process.env.VITE_GOOGLE_DRIVE_API_KEY); console.log('Client ID exists:', !!process.env.VITE_GOOGLE_DRIVE_CLIENT_ID); });\"",
+    "build:env": "node build-env.js",
+    "deploy": "npm run build && npm run preview"
+  },
+  "keywords": [
+    "order-management",
+    "google-drive",
+    "inventory",
+    "tracking"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "vite": "^4.5.0",
+    "dotenv": "^16.3.1",
+    "terser": "^5.22.0"
+  }
+}
