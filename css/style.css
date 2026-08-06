@@ -927,6 +927,253 @@ tbody tr:hover {
     gap: 12px;
 }
 
+/* ============ ANALYSIS CONTROLS ============ */
+
+.analysis-container {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+}
+
+.analysis-container h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--gray-800);
+}
+
+.analysis-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.analysis-controls .analysis-select {
+    padding: 8px 16px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+    min-width: 150px;
+    transition: all 0.2s;
+}
+
+.analysis-controls .analysis-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.analysis-controls .btn-export {
+    padding: 8px 20px;
+    background: var(--secondary);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.analysis-controls .btn-export:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+/* Boss Export Section */
+.boss-export {
+    margin: 20px 0;
+    padding: 20px;
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+}
+
+.boss-export h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+.boss-export .btn-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.boss-export .btn-group .btn-primary,
+.boss-export .btn-group .btn-secondary {
+    padding: 8px 16px;
+    font-size: 13px;
+    border-radius: var(--border-radius);
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.boss-export .btn-group .btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.boss-export .btn-group .btn-primary:hover {
+    background: var(--primary-dark);
+}
+
+.boss-export .btn-group .btn-secondary {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+.boss-export .btn-group .btn-secondary:hover {
+    background: var(--gray-200);
+}
+
+.boss-export .filter-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.boss-export .filter-row label {
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--gray-600);
+}
+
+.boss-export .filter-row select {
+    padding: 6px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--border-radius);
+    font-size: 13px;
+    background: white;
+    cursor: pointer;
+    min-width: 150px;
+}
+
+.boss-export .filter-row select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.boss-export .info-text {
+    color: var(--gray-500);
+    font-size: 14px;
+}
+
+/* Analysis Table */
+.analysis-table-wrapper {
+    overflow-x: auto;
+    margin-top: 12px;
+}
+
+.analysis-table-wrapper table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.analysis-table-wrapper thead th {
+    background: var(--gray-50);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray-500);
+    border-bottom: 2px solid var(--gray-200);
+}
+
+.analysis-table-wrapper tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--gray-100);
+    font-size: 14px;
+}
+
+.analysis-table-wrapper tbody tr:hover {
+    background: var(--gray-50);
+}
+
+/* Progress Bar in Analysis */
+.analysis-table-wrapper .progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 100px;
+}
+
+.analysis-table-wrapper .progress-fill {
+    height: 6px;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+    flex: 1;
+}
+
+.analysis-table-wrapper .progress-bar span {
+    font-size: 12px;
+    color: var(--gray-500);
+    min-width: 40px;
+}
+
+/* Responsive Analysis Controls */
+@media (max-width: 768px) {
+    .analysis-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .analysis-controls .analysis-select {
+        width: 100%;
+    }
+    
+    .analysis-controls .btn-export {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .boss-export .btn-group {
+        flex-direction: column;
+    }
+    
+    .boss-export .btn-group .btn-primary,
+    .boss-export .btn-group .btn-secondary {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .boss-export .filter-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .boss-export .filter-row select {
+        width: 100%;
+    }
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
     .stats-grid {
