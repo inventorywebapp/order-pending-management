@@ -566,7 +566,6 @@ class OrderManagementApp {
                 const sku = this.findValue(row, ['SKU', 'sku', 'Item', 'item']);
                 const qty = parseFloat(this.findValue(row, ['Delivery Qty', 'delivery_qty', 'Qty', 'qty']) || 0);
                 const supplier = this.findValue(row, ['Supplier', 'supplier', 'Vendor', 'vendor']);
-                // ✅ Changed from Est. Delivery Date to China Date
                 const chinaDate = this.convertExcelDate(this.findValue(row, ['China Date', 'china_date', 'Est. Delivery Date', 'est_delivery_date', 'Delivery Date', 'delivery_date', 'Date', 'date']));
                 const boxCode = this.findValue(row, ['Box Code', 'box_code', 'Box', 'box']);
                 
@@ -696,6 +695,7 @@ class OrderManagementApp {
         return mockData;
     }
 
+    // ============ PROCESS PENDING ORDERS (CASE-INSENSITIVE) ============
     processPendingOrders() {
         console.log('📊 Processing pending orders with FIFO...');
         
@@ -704,8 +704,9 @@ class OrderManagementApp {
             new Date(a.orderDate) - new Date(b.orderDate)
         );
         
+        // ✅ Case-insensitive grouping for orders
         sortedOrders.forEach(order => {
-            const key = `${order.sku}-${order.supplier}`;
+            const key = `${order.sku.toLowerCase()}-${order.supplier}`;
             if (!orderGroups.has(key)) {
                 orderGroups.set(key, {
                     sku: order.sku,
@@ -719,9 +720,10 @@ class OrderManagementApp {
             group.totalOrder += order.qty;
         });
         
+        // ✅ Case-insensitive grouping for deliveries
         const deliveryMap = new Map();
         this.data.deliveries.forEach(delivery => {
-            const key = `${delivery.sku}-${delivery.supplier}`;
+            const key = `${delivery.sku.toLowerCase()}-${delivery.supplier}`;
             if (!deliveryMap.has(key)) {
                 deliveryMap.set(key, 0);
             }
@@ -748,10 +750,10 @@ class OrderManagementApp {
                     remainingToDeliver -= deducted;
                     deliveredCount += deducted;
                     
-                    // ✅ FIX: Only set China Date if delivery exists
+                    // ✅ Case-insensitive matching for China Date
                     let chinaDate = '';
                     for (const delivery of this.data.deliveries) {
-                        if (delivery.sku === order.sku && delivery.supplier === order.supplier) {
+                        if (delivery.sku.toLowerCase() === order.sku.toLowerCase() && delivery.supplier === order.supplier) {
                             chinaDate = delivery.chinaDate || '';
                             break;
                         }
@@ -760,7 +762,7 @@ class OrderManagementApp {
                     orderStatus.push({
                         orderCode: order.orderCode || '',
                         orderDate: order.orderDate,
-                        chinaDate: chinaDate,  // ✅ Empty if no delivery
+                        chinaDate: chinaDate,
                         qty: order.qty,
                         delivered: deducted,
                         remaining: orderRemaining,
@@ -770,7 +772,7 @@ class OrderManagementApp {
                     orderStatus.push({
                         orderCode: order.orderCode || '',
                         orderDate: order.orderDate,
-                        chinaDate: '',  // ✅ Empty for pending orders
+                        chinaDate: '',
                         qty: order.qty,
                         delivered: 0,
                         remaining: order.qty,
@@ -1075,15 +1077,16 @@ class OrderManagementApp {
         }
     }
 
-    // ============ MISMATCH DETECTION ============
+    // ============ MISMATCH DETECTION (CASE-INSENSITIVE) ============
 
     findQuantityMismatches() {
         const mismatches = [];
         const orderMap = new Map();
         const deliveryMap = new Map();
         
+        // ✅ Case-insensitive grouping for quantity mismatches
         this.data.orders.forEach(order => {
-            const key = `${order.sku}-${order.supplier}`;
+            const key = `${order.sku.toLowerCase()}-${order.supplier}`;
             if (!orderMap.has(key)) {
                 orderMap.set(key, { sku: order.sku, supplier: order.supplier, totalOrder: 0 });
             }
@@ -1091,7 +1094,7 @@ class OrderManagementApp {
         });
         
         this.data.deliveries.forEach(delivery => {
-            const key = `${delivery.sku}-${delivery.supplier}`;
+            const key = `${delivery.sku.toLowerCase()}-${delivery.supplier}`;
             if (!deliveryMap.has(key)) {
                 deliveryMap.set(key, { sku: delivery.sku, supplier: delivery.supplier, totalDelivery: 0 });
             }
@@ -1357,19 +1360,20 @@ class OrderManagementApp {
         });
     }
 
-    // ============ SKU MISMATCH FEATURES ============
+    // ============ SKU MISMATCH FEATURES (CASE-INSENSITIVE) ============
 
     findSKUsNotInOrder() {
-        const orderSKUs = new Set(this.data.orders.map(o => o.sku));
-        const deliverySKUs = new Set(this.data.deliveries.map(d => d.sku));
-        const actualSKUs = new Set(this.data.actual.map(a => a.sku));
+        // ✅ Case-insensitive SKU comparison
+        const orderSKUs = new Set(this.data.orders.map(o => o.sku.toLowerCase()));
+        const deliverySKUs = new Set(this.data.deliveries.map(d => d.sku.toLowerCase()));
+        const actualSKUs = new Set(this.data.actual.map(a => a.sku.toLowerCase()));
         
         const allSKUs = new Set([...deliverySKUs, ...actualSKUs]);
         const notInOrder = [...allSKUs].filter(sku => !orderSKUs.has(sku));
         
         const flaggedItems = [];
         this.data.deliveries.forEach(d => {
-            if (notInOrder.includes(d.sku)) {
+            if (notInOrder.includes(d.sku.toLowerCase())) {
                 flaggedItems.push({
                     sku: d.sku,
                     supplier: d.supplier,
@@ -1381,7 +1385,7 @@ class OrderManagementApp {
             }
         });
         this.data.actual.forEach(a => {
-            if (notInOrder.includes(a.sku)) {
+            if (notInOrder.includes(a.sku.toLowerCase())) {
                 flaggedItems.push({
                     sku: a.sku,
                     supplier: a.supplier,
@@ -1721,7 +1725,7 @@ class OrderManagementApp {
                 'Status': p.status,
                 'Status Note': p.statusNote || '',
                 'Order Date': p.orderDate,
-                'China Date': chinaDate,  // ✅ Only shown if delivery exists
+                'China Date': chinaDate,
                 'Order Code': p.orderCode
             };
         });
@@ -2717,8 +2721,6 @@ class OrderManagementApp {
         }
     }
 
-    // js/app.js - Replace filterDeliveries method
-
     filterDeliveries(searchTerm) {
         // Search ALL delivery data
         const filtered = this.data.deliveries.filter(delivery => 
@@ -2737,7 +2739,6 @@ class OrderManagementApp {
         const displayData = filtered.slice(0, this.loadMore.deliveries.limit);
         const hasMore = filtered.length > this.loadMore.deliveries.limit;
         
-        // ✅ FIX: Removed the extra "Status" column
         tbody.innerHTML = displayData.map(delivery => `
             <tr>
                 <td><strong>${delivery.sku}</strong></td>
