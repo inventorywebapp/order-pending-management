@@ -1080,82 +1080,76 @@ class OrderManagementApp {
     // ============ MISMATCH DETECTION (CASE-INSENSITIVE) ============
 
     findQuantityMismatches() {
-        const mismatches = [];
-        const orderMap = new Map();
-        const deliveryMap = new Map();
-        
-        // ✅ Case-insensitive grouping for quantity mismatches
-        this.data.orders.forEach(order => {
-            const key = `${order.sku.toLowerCase()}-${order.supplier}`;
-            if (!orderMap.has(key)) {
-                orderMap.set(key, { sku: order.sku, supplier: order.supplier, totalOrder: 0 });
-            }
-            orderMap.get(key).totalOrder += order.qty;
-        });
-        
-        this.data.deliveries.forEach(delivery => {
-            const key = `${delivery.sku.toLowerCase()}-${delivery.supplier}`;
-            if (!deliveryMap.has(key)) {
-                deliveryMap.set(key, { sku: delivery.sku, supplier: delivery.supplier, totalDelivery: 0 });
-            }
-            deliveryMap.get(key).totalDelivery += delivery.qty;
-        });
-        
-        deliveryMap.forEach((delivery, key) => {
-            const order = orderMap.get(key);
-            if (order) {
-                const difference = delivery.totalDelivery - order.totalOrder;
-                if (difference > 0) {
-                    mismatches.push({
-                        sku: delivery.sku,
-                        supplier: delivery.supplier,
-                        ordered: order.totalOrder,
-                        delivered: delivery.totalDelivery,
-                        excess: difference,
-                        type: 'over-delivery',
-                        severity: 'high'
-                    });
-                } else if (difference < 0) {
-                    mismatches.push({
-                        sku: delivery.sku,
-                        supplier: delivery.supplier,
-                        ordered: order.totalOrder,
-                        delivered: delivery.totalDelivery,
-                        shortage: Math.abs(difference),
-                        type: 'under-delivery',
-                        severity: 'medium'
-                    });
-                }
-            } else {
+    const mismatches = [];
+    const orderMap = new Map();
+    const deliveryMap = new Map();
+    
+    // Group orders by SKU and supplier
+    this.data.orders.forEach(order => {
+        const key = `${order.sku.toLowerCase()}-${order.supplier}`;
+        if (!orderMap.has(key)) {
+            orderMap.set(key, { sku: order.sku, supplier: order.supplier, totalOrder: 0 });
+        }
+        orderMap.get(key).totalOrder += order.qty;
+    });
+    
+    // Group deliveries by SKU and supplier
+    this.data.deliveries.forEach(delivery => {
+        const key = `${delivery.sku.toLowerCase()}-${delivery.supplier}`;
+        if (!deliveryMap.has(key)) {
+            deliveryMap.set(key, { sku: delivery.sku, supplier: delivery.supplier, totalDelivery: 0 });
+        }
+        deliveryMap.get(key).totalDelivery += delivery.qty;
+    });
+    
+    // ✅ Check for quantity mismatches (ONLY where both order AND delivery exist)
+    deliveryMap.forEach((delivery, key) => {
+        const order = orderMap.get(key);
+        if (order) {
+            const difference = delivery.totalDelivery - order.totalOrder;
+            if (difference > 0) {
                 mismatches.push({
                     sku: delivery.sku,
                     supplier: delivery.supplier,
-                    ordered: 0,
+                    ordered: order.totalOrder,
                     delivered: delivery.totalDelivery,
-                    excess: delivery.totalDelivery,
-                    type: 'no-order',
+                    excess: difference,
+                    type: 'over-delivery',
                     severity: 'high'
                 });
-            }
-        });
-        
-        orderMap.forEach((order, key) => {
-            const delivery = deliveryMap.get(key);
-            if (!delivery) {
+            } else if (difference < 0) {
                 mismatches.push({
-                    sku: order.sku,
-                    supplier: order.supplier,
+                    sku: delivery.sku,
+                    supplier: delivery.supplier,
                     ordered: order.totalOrder,
-                    delivered: 0,
-                    shortage: order.totalOrder,
-                    type: 'no-delivery',
+                    delivered: delivery.totalDelivery,
+                    shortage: Math.abs(difference),
+                    type: 'under-delivery',
                     severity: 'medium'
                 });
             }
-        });
-        
-        return mismatches;
-    }
+        }
+        // ✅ REMOVED: 'no-order' detection (handled by SKU mismatch)
+    });
+    
+    // Check for orders with no deliveries
+    orderMap.forEach((order, key) => {
+        const delivery = deliveryMap.get(key);
+        if (!delivery) {
+            mismatches.push({
+                sku: order.sku,
+                supplier: order.supplier,
+                ordered: order.totalOrder,
+                delivered: 0,
+                shortage: order.totalOrder,
+                type: 'no-delivery',
+                severity: 'medium'
+            });
+        }
+    });
+    
+    return mismatches;
+}
 
     renderMismatchDetails() {
         const skuMismatches = this.findSKUsNotInOrder();
