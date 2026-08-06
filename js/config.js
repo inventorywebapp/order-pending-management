@@ -37,7 +37,7 @@ const CONFIG = {
     GOOGLE_DRIVE: {
         API_KEY: getEnv('VITE_GOOGLE_DRIVE_API_KEY', ''),
         CLIENT_ID: getEnv('VITE_GOOGLE_DRIVE_CLIENT_ID', ''),
-        SCOPES: 'https://www.googleapis.com/auth/drive.readonly',  // ← CHANGE THIS
+        SCOPES: 'https://www.googleapis.com/auth/drive.readonly',
         DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
     },
     
@@ -62,7 +62,7 @@ const CONFIG = {
             SKU: 'SKU',
             QTY: 'Delivery Qty',
             SUPPLIER: 'Supplier',
-            DELIVERY_DATE: 'Est. Delivery Date',
+            CHINA_DATE: 'China Date',      // ✅ Changed from DELIVERY_DATE
             BOX_CODE: 'Box Code'
         },
         ACTUAL: {
