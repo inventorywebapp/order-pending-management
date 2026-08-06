@@ -2669,14 +2669,13 @@ class OrderManagementApp {
         const displayData = filtered.slice(0, this.loadMore.actual.limit);
         const hasMore = filtered.length > this.loadMore.actual.limit;
         
-        tbody.innerHTML = displayData.map(actual => `
+            tbody.innerHTML = displayData.map(actual => `
             <tr>
                 <td><strong>${actual.sku}</strong></td>
                 <td>${actual.qty}</td>
                 <td>${actual.supplier}</td>
                 <td>${this.formatDate(actual.actualDate)}</td>
                 <td>${actual.boxCode || '-'}</td>
-                <td><span class="status-badge status-completed">Received</span></td>
             </tr>
         `).join('');
         
